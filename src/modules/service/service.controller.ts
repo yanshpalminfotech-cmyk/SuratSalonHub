@@ -29,7 +29,7 @@ import { JwtAuthGuard } from 'src/common/guard/auth.guard';
 import { RolesGuard } from 'src/common/guard/roles.guard';
 import { Roles } from 'src/common/decorator/roles.decorator';
 import { CurrentUser } from 'src/common/decorator/current-user.decorator';
-import { UserRole } from 'src/common/enums/roles.enum';
+import { UserRole } from 'src/common/enums/index';
 import { User } from '../user/entities/user.entity';
 
 @ApiTags('Services')

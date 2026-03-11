@@ -16,6 +16,10 @@ import { AppService } from './app.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ServiceModule } from './modules/service/service.module';
 import { StylistModule } from './modules/stylist/stylist.module';
+import { CustomerModule } from './modules/customer/customer.module';
+import { TimeSlotModule } from './modules/time-slot/time-slot.module';
+import { AppointmentModule } from './modules/appointment/appointment.module';
+import { PaymentModule } from './modules/payment/payment.module';
 
 @Module({
   imports: [
@@ -37,7 +41,7 @@ import { StylistModule } from './modules/stylist/stylist.module';
         },
       }),
     }),
-    UserModule, AuthModule, RedisModule, ServiceCategoryModule, ServiceModule, StylistModule
+    UserModule, AuthModule, RedisModule, ServiceCategoryModule, ServiceModule, StylistModule, CustomerModule, TimeSlotModule, AppointmentModule, PaymentModule
   ],
   controllers: [AppController],
   providers: [{ provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },

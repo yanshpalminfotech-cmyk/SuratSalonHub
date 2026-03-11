@@ -2,12 +2,18 @@ import {
     IsEmail,
     IsEnum,
     IsString,
+    IsOptional,
+    IsNumber,
     MinLength,
     MaxLength,
     Matches,
+    Min,
+    Max,
+    ValidateIf,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-import { UserRole } from 'src/common/enums/roles.enum';
+import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UserRole, StylistSpecialisation } from 'src/common/enums';
 
 export class CreateUserDto {
     @ApiProperty({ example: 'Priya Shah' })
@@ -35,4 +41,22 @@ export class CreateUserDto {
     @ApiProperty({ enum: UserRole, example: UserRole.STYLIST })
     @IsEnum(UserRole, { message: `Role must be one of: ${Object.values(UserRole).join(', ')}` })
     role!: UserRole;
+
+    // ── Stylist-only fields — required when role = Stylist ────────────────────
+    @ApiPropertyOptional({ enum: StylistSpecialisation })
+    @ValidateIf((o) => o.role === UserRole.STYLIST)
+    @IsEnum(StylistSpecialisation, {
+        message: 'specialisation is required and must be valid when role is Stylist',
+    })
+    specialisation?: StylistSpecialisation;
+
+    @ApiPropertyOptional({ example: 30.00, description: '0.00 to 100.00' })
+    @ValidateIf((o) => o.role === UserRole.STYLIST)
+    @Type(() => Number)
+    @IsNumber({ maxDecimalPlaces: 2 }, {
+        message: 'commissionRate is required when role is Stylist',
+    })
+    @Min(0)
+    @Max(100)
+    commissionRate?: number;
 }
