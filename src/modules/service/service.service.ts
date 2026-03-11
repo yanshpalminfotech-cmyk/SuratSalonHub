@@ -15,7 +15,7 @@ import { UpdateServiceDto } from './dto/update-service.dto';
 import { QueryServiceDto } from './dto/query-service.dto';
 import { ServiceResponseDto, ServiceStylistResponseDto } from './dto/service-response.dto';
 import { MySqlError } from 'src/common/interface/mysql-error.interface';
-import { UserRole } from 'src/common/enums/roles.enum';
+import { UserRole } from 'src/common/enums/index';
 import { STATUS } from 'src/common/constant/constant';
 
 
@@ -305,6 +305,14 @@ export class ServiceService {
     }
 
     // maps entity array to correct DTO shape based on caller's role
+    serializeServicesForRole(
+        services: Service[],
+        role: UserRole,
+    ): ServiceResponseDto[] | ServiceStylistResponseDto[] {
+        return this.serializeForRole(services, role);
+    }
+
+    // maps entity array to correct DTO shape based on caller's role
     private serializeForRole(
         services: Service[],
         role: UserRole,
@@ -319,4 +327,5 @@ export class ServiceService {
             excludeExtraneousValues: true,
         });
     }
+
 }

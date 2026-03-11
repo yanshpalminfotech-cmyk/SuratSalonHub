@@ -22,7 +22,7 @@ import { ServiceCategoryService } from './service-category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { ServiceCategory } from './entities/service-category.entity';
-import { UserRole } from 'src/common/enums/roles.enum';
+import { UserRole } from 'src/common/enums/index';
 import { Roles } from 'src/common/decorator/roles.decorator';
 import { JwtAuthGuard } from 'src/common/guard/auth.guard';
 import { RolesGuard } from 'src/common/guard/roles.guard';

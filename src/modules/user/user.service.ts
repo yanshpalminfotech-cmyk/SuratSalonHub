@@ -18,14 +18,14 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { QueryUserDto } from './dto/query-user.dto';
-import { UserRole } from 'src/common/enums/roles.enum';
+import { UserRole } from 'src/common/enums';
 import { STATUS } from 'src/common/constant/constant';
 import { MySqlError } from 'src/common/interface/mysql-error.interface';
 import { JwtPayload } from 'src/common/strategy/access.strategy';
 import { JwtService } from '@nestjs/jwt';
 import { TokenBlacklistService } from 'src/common/services/token-blacklist.service';
 import { RefreshToken } from '../auth/entities/refreshtoken.entity';
-// import { StylistsService } from '../stylists/stylists.service';
+import { StylistsService } from '../stylist/stylist.service';
 
 export interface PaginatedUsers {
     data: User[];
@@ -50,8 +50,8 @@ export class UsersService {
         @InjectRepository(RefreshToken)
         private readonly refreshTokenRepo: Repository<RefreshToken>,
         // forwardRef — breaks circular dependency (Users ↔ Stylists)
-        // @Inject(forwardRef(() => StylistsService))
-        // private readonly stylistsService: StylistsService,
+        @Inject(forwardRef(() => StylistsService))
+        private readonly stylistsService: StylistsService,
     ) { }
 
     async create(dto: CreateUserDto): Promise<User> {
@@ -69,7 +69,12 @@ export class UsersService {
                 const savedUser = await manager.save(User, newUser);
 
                 if (dto.role === UserRole.STYLIST) {
-                    // await this.stylistsService.createProfileInTransaction(manager, savedUser);
+                    await this.stylistsService.createProfileInTransaction(
+                        manager,
+                        savedUser,
+                        dto.specialisation!,
+                        dto.commissionRate!,
+                    );
                 }
 
                 return savedUser;
