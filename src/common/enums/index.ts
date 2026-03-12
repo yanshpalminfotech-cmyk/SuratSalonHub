@@ -8,6 +8,7 @@ export enum StylistSpecialisation {
 export enum StylistStatus {
     ACTIVE = 'Active',
     ON_LEAVE = 'On Leave',
+    DELETED = 'Deleted',
 }
 
 export enum DayOfWeek {
@@ -33,25 +34,25 @@ export enum UserRole {
 
 export enum SlotStatus {
     AVAILABLE = 'Available',
-    BOOKED    = 'Booked',
+    BOOKED = 'Booked',
 }
 
 export enum AppointmentStatus {
-    SCHEDULED  = 'Scheduled',
-    COMPLETED  = 'Completed',
-    CANCELLED  = 'Cancelled',
-    NO_SHOW    = 'No-Show',
+    SCHEDULED = 'Scheduled',
+    COMPLETED = 'Completed',
+    CANCELLED = 'Cancelled',
+    NO_SHOW = 'No-Show',
 }
 
 export enum PaymentMethod {
-    CASH  = 'Cash',
-    CARD  = 'Card',
-    UPI   = 'UPI',
+    CASH = 'Cash',
+    CARD = 'Card',
+    UPI = 'UPI',
     OTHER = 'Other',
 }
 
 export enum PaymentStatus {
-    PENDING  = 'Pending',
-    PAID     = 'Paid',
+    PENDING = 'Pending',
+    PAID = 'Paid',
     REFUNDED = 'Refunded',
 }

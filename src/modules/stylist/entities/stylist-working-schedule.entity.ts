@@ -6,9 +6,12 @@ import {
     JoinColumn,
     Index,
     Unique,
+    CreateDateColumn,
+    UpdateDateColumn,
 } from 'typeorm';
 import { Stylist } from './stylist.entity';
 import { DayOfWeek } from 'src/common/enums/index';
+import { STATUS } from 'src/common/constant/constant';
 
 @Entity('stylist_working_schedules')
 @Unique('uq_stylist_day', ['stylist', 'dayOfWeek'])   // one record per stylist per day
@@ -35,4 +38,13 @@ export class StylistWorkingSchedule {
 
     @Column({ name: 'end_time', type: 'time', nullable: true })
     endTime!: string | null;               // '18:00:00'
+
+    @CreateDateColumn({ name: 'created_at' })
+    createdAt!: Date;
+
+    @UpdateDateColumn({ name: 'updated_at' })
+    updatedAt!: Date;
+
+    @Column({ type: 'tinyint', default: STATUS.ACTIVE })
+    status!: number;
 }

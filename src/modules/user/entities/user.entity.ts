@@ -9,7 +9,7 @@ import {
     OneToMany,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
-import { UserRole } from 'src/common/enums/roles.enum';
+import { UserRole } from 'src/common/enums';
 import { STATUS } from 'src/common/constant/constant';
 
 

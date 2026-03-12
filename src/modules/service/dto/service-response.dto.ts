@@ -1,5 +1,5 @@
 import { Exclude, Expose, Type } from 'class-transformer';
-import { Gender } from 'src/common/enums/gender.enum';
+import { Gender } from 'src/common/enums';
 
 
 // ── Category shape inside service response ────────────────────────────────────

@@ -68,7 +68,7 @@ export class TimeSlotService implements OnApplicationBootstrap {
     // ─────────────────────────────────────────────────────────────────────────
     // CRON — every day at 23:30, add one more day to the rolling window
     // ─────────────────────────────────────────────────────────────────────────
-    @Cron('30 23 * * *')
+    @Cron('39 17 * * *')
     async generateDailySlots(): Promise<void> {
         const target = new Date();
         target.setDate(target.getDate() + 7);
@@ -97,7 +97,7 @@ export class TimeSlotService implements OnApplicationBootstrap {
 
         // fetch all ACTIVE stylists with their working schedules
         const stylists = await this.stylistRepo.find({
-            where: { status: StylistStatus.ACTIVE },
+            where: { stylistStatus: StylistStatus.ACTIVE },
             relations: ['workingSchedules'],
         });
 
@@ -240,7 +240,7 @@ export class TimeSlotService implements OnApplicationBootstrap {
         }
 
         const startMins = timeToMins(schedule.startTime);
-        const endMins   = timeToMins(schedule.endTime);
+        const endMins = timeToMins(schedule.endTime);
 
         const slots: Partial<TimeSlot>[] = [];
 
@@ -250,22 +250,26 @@ export class TimeSlotService implements OnApplicationBootstrap {
             current += SLOT_DURATION_MINS
         ) {
             slots.push({
-                stylist:   { id: stylistId } as Stylist,
+                stylist: { id: stylistId } as Stylist,
                 date,
                 startTime: minsToTime(current),
-                endTime:   minsToTime(current + SLOT_DURATION_MINS),
-                status:    SlotStatus.AVAILABLE,
+                endTime: minsToTime(current + SLOT_DURATION_MINS),
+                status: SlotStatus.AVAILABLE,
             });
         }
 
         if (slots.length === 0) return;
 
         // INSERT IGNORE — idempotent: skips existing rows silently
+        // .updateEntity(false) prevents TypeORM from trying to re-fetch the entity
+        // id after INSERT IGNORE, which returns 0 for skipped (duplicate) rows
+        // and causes "Cannot update entity because entity id is not set" error.
         await this.dataSource
             .createQueryBuilder()
             .insert()
             .into(TimeSlot)
             .values(slots)
+            .updateEntity(false)  // ← CRITICAL: skip post-insert entity sync
             .orIgnore()           // ON DUPLICATE KEY UPDATE — does nothing
             .execute();
     }
@@ -276,8 +280,8 @@ export class TimeSlotService implements OnApplicationBootstrap {
     private toDateString(d: Date): string {
         // Local date in YYYY-MM-DD (avoid UTC shift from toISOString())
         const yyyy = d.getFullYear();
-        const mm   = String(d.getMonth() + 1).padStart(2, '0');
-        const dd   = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
         return `${yyyy}-${mm}-${dd}`;
     }
 
@@ -289,8 +293,8 @@ export class TimeSlotService implements OnApplicationBootstrap {
 
     private areConsecutive(slots: TimeSlot[]): boolean {
         for (let i = 0; i < slots.length - 1; i++) {
-            const currentEndMins  = timeToMins(slots[i].endTime.substring(0, 5));
-            const nextStartMins   = timeToMins(slots[i + 1].startTime.substring(0, 5));
+            const currentEndMins = timeToMins(slots[i].endTime.substring(0, 5));
+            const nextStartMins = timeToMins(slots[i + 1].startTime.substring(0, 5));
             if (currentEndMins !== nextStartMins) return false;
         }
         return true;

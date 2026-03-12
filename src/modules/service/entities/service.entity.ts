@@ -9,7 +9,7 @@ import {
     Index,
 } from 'typeorm';
 import { ServiceCategory } from '../../service-category/entities/service-category.entity';
-import { Gender } from 'src/common/enums/gender.enum';
+import { Gender } from 'src/common/enums';
 import { STATUS } from 'src/common/constant/constant';
 
 

@@ -19,7 +19,7 @@ import { JwtPayload } from '../../common/strategy/access.strategy';
 import { RefreshToken } from './entities/refreshtoken.entity';
 import { UsersService } from '../user/user.service';
 import { TokenBlacklistService } from 'src/common/services/token-blacklist.service';
-import { UserRole } from 'src/common/enums/roles.enum';
+import { UserRole } from 'src/common/enums';
 import { RegisterAdminDto } from './dto/register-admin.dto';
 import { STATUS } from 'src/common/constant/constant';
 

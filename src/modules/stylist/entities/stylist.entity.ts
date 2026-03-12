@@ -13,6 +13,7 @@ import { User } from '../../user/entities/user.entity';
 import { StylistSpecialisation, StylistStatus } from 'src/common/enums/index';
 import { StylistWorkingSchedule } from './stylist-working-schedule.entity';
 import { StylistService } from './stylist-service.entity';
+import { STATUS } from 'src/common/constant/constant';
 
 
 @Entity('stylists')
@@ -44,13 +45,13 @@ export class Stylist {
     @Column({ type: 'text', nullable: true })
     bio!: string | null;
 
-    @Index('idx_stylists_status')
+    @Index('idx_stylist_status')
     @Column({
         type: 'enum',
         enum: StylistStatus,
         default: StylistStatus.ACTIVE,
     })
-    status!: StylistStatus;
+    stylistStatus!: StylistStatus;
 
     @OneToMany(() => StylistWorkingSchedule, (schedule) => schedule.stylist, {
         cascade: true,

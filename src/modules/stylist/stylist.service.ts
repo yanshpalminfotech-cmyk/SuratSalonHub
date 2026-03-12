@@ -6,9 +6,10 @@ import {
     Logger,
     forwardRef,
     Inject,
+    ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import { Stylist } from './entities/stylist.entity';
 import { StylistWorkingSchedule } from './entities/stylist-working-schedule.entity';
@@ -22,7 +23,9 @@ import { StylistAdminResponseDto, StylistResponseDto } from './dto/stylist-respo
 import { MySqlError } from 'src/common/interface/mysql-error.interface';
 import { UserRole, DayOfWeek, StylistSpecialisation, StylistStatus } from 'src/common/enums';
 import { User } from '../user/entities/user.entity';
+import { STATUS } from 'src/common/constant/constant';
 
+// ── matches STATUS constant in src/common/constant/constant.ts ───────────────
 export interface PaginatedStylists {
     data: StylistAdminResponseDto[] | StylistResponseDto[];
     total: number;
@@ -45,8 +48,8 @@ export class StylistsService {
         @InjectRepository(Stylist)
         private readonly stylistRepo: Repository<Stylist>,
 
-        @InjectRepository(StylistWorkingSchedule)
-        private readonly scheduleRepo: Repository<StylistWorkingSchedule>,
+        @InjectRepository(User)
+        private readonly userRepo: Repository<User>,
 
         @InjectRepository(StylistServiceEntity)
         private readonly stylistServiceRepo: Repository<StylistServiceEntity>,
@@ -61,18 +64,18 @@ export class StylistsService {
     // INTERNAL — called by UserService inside transaction on stylist user create
     // ─────────────────────────────────────────────────────────────────────────
     async createProfileInTransaction(
-        manager: any,
+        manager: EntityManager,
         user: User,
         specialisation: StylistSpecialisation,
         commissionRate: number,
     ): Promise<Stylist> {
-        // ── create stylist profile ────────────────────────────────────────
         const stylist = manager.create(Stylist, {
             user,
             specialisation,
             commissionRate,
             bio: null,
-            status: StylistStatus.ACTIVE,
+            stylistsStatus: StylistStatus.ACTIVE,  // availability enum
+            status: STATUS.ACTIVE,  // soft-delete numeric
         });
 
         const savedStylist = await manager.save(Stylist, stylist);
@@ -106,13 +109,13 @@ export class StylistsService {
         const qb = this.stylistRepo
             .createQueryBuilder('stylist')
             .leftJoinAndSelect('stylist.user', 'user')
-            .where('stylist.status != :deleted', { deleted: 'Deleted' })
             .orderBy('user.name', 'ASC')
             .skip((page - 1) * limit)
             .take(limit);
 
+        // status query param filters by stylistsStatus (availability enum)
         if (status) {
-            qb.andWhere('stylist.status = :status', { status });
+            qb.andWhere('stylist.stylistsStatus = :stylistsStatus', { stylistsStatus: status });
         }
 
         if (specialisation) {
@@ -144,17 +147,40 @@ export class StylistsService {
     // ─────────────────────────────────────────────────────────────────────────
     // GET /stylists/:id/schedule — All roles
     // ─────────────────────────────────────────────────────────────────────────
-    async getSchedule(id: number): Promise<StylistWorkingSchedule[]> {
-        await this.findOneOrFail(id);
-
-        const schedules = await this.scheduleRepo.find({
-            where: { stylist: { id } },
+    async getSchedule(id: number, userRole: UserRole): Promise<StylistWorkingSchedule[]> {
+        const stylist = await this.stylistRepo.findOne({
+            where: { id },
+            relations: ['user', 'workingSchedules'],
         });
 
-        // return in Monday → Sunday order always
-        return schedules.sort(
-            (a, b) => DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek),
-        );
+        // 2. If the Stylist ID doesn't exist at all
+        if (!stylist) {
+            throw new NotFoundException(`Stylist with ID ${id} not found.`);
+        }
+
+        // 3. Status Check (Bypass if the requester is an ADMIN)
+        if (userRole !== UserRole.ADMIN) {
+
+            // Check the status from your Stylist entity (StylistStatus enum)
+            if (stylist.user.status === STATUS.DELETED) {
+                throw new NotFoundException('The requested stylist is no longer available.');
+            }
+
+            if (stylist.user.status === STATUS.INACTIVE) {
+                throw new ForbiddenException(
+                    `Stylist "${stylist.user.name}" is currently inactive. Schedule is private.`
+                );
+            }
+        }
+
+        // 4. Sort schedules by DayOfWeek index before returning
+        if (stylist.workingSchedules) {
+            stylist.workingSchedules.sort(
+                (a, b) => DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek),
+            );
+        }
+
+        return stylist.workingSchedules;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -170,9 +196,8 @@ export class StylistsService {
 
         const services = assignments
             .map((a) => a.service)
-            .filter((s) => s.status !== 127);          // exclude deleted services
+            .filter((s) => s.status !== 127);
 
-        // reuse ServiceService role-based serialization
         return this.serviceService.serializeServicesForRole(services, role);
     }
 
@@ -182,10 +207,12 @@ export class StylistsService {
     async update(id: number, dto: UpdateStylistDto): Promise<Stylist> {
         const stylist = await this.findOneOrFail(id);
 
+        // dto.status maps to stylistsStatus (Active / On Leave availability enum)
+        // NOT the numeric status field (which is for soft delete only)
         if (dto.specialisation !== undefined) stylist.specialisation = dto.specialisation;
         if (dto.commissionRate !== undefined) stylist.commissionRate = dto.commissionRate;
         if (dto.bio !== undefined) stylist.bio = dto.bio?.trim() ?? null;
-        if (dto.status !== undefined) stylist.status = dto.status;
+        if (dto.stylistStatus !== undefined) stylist.stylistStatus = dto.stylistStatus;
 
         try {
             const updated = await this.stylistRepo.save(stylist);
@@ -209,7 +236,6 @@ export class StylistsService {
     ): Promise<StylistWorkingSchedule[]> {
         const stylist = await this.findOneOrFail(id);
 
-        // ── validate all 7 days present with no duplicates ────────────────
         const days = dto.schedule.map((s) => s.dayOfWeek);
         const uniqueDays = new Set(days);
 
@@ -219,7 +245,6 @@ export class StylistsService {
             );
         }
 
-        // ── validate startTime < endTime for working days ─────────────────
         for (const day of dto.schedule) {
             if (day.isWorking && day.startTime && day.endTime) {
                 if (day.startTime >= day.endTime) {
@@ -230,7 +255,6 @@ export class StylistsService {
             }
         }
 
-        // ── delete + re-insert inside transaction ─────────────────────────
         await this.dataSource.transaction(async (manager) => {
             await manager.delete(StylistWorkingSchedule, { stylist: { id } });
 
@@ -248,7 +272,7 @@ export class StylistsService {
         });
 
         this.logger.log(`Schedule updated for stylist #${id}`);
-        return this.getSchedule(id);
+        return this.getSchedule(id, UserRole.ADMIN);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -260,19 +284,17 @@ export class StylistsService {
     ): Promise<{ message: string; total: number }> {
         const stylist = await this.findOneOrFail(id);
 
-        // ── validate all service IDs are active ───────────────────────────
         if (dto.serviceIds.length > 0) {
             const validServices = await this.serviceService.findByIds(dto.serviceIds);
 
             if (validServices.length !== dto.serviceIds.length) {
                 const validIds = validServices.map((s) => s.id);
-                const invalidIds = dto.serviceIds.filter((id) => !validIds.includes(id));
+                const invalidIds = dto.serviceIds.filter((sid) => !validIds.includes(sid));
                 throw new BadRequestException(
                     `Service IDs [${invalidIds.join(', ')}] are invalid, inactive, or deleted`,
                 );
             }
 
-            // ── delete existing + insert new inside transaction ───────────
             await this.dataSource.transaction(async (manager) => {
                 await manager.delete(StylistServiceEntity, { stylist: { id } });
 
@@ -283,7 +305,6 @@ export class StylistsService {
                 await manager.save(StylistServiceEntity, assignments);
             });
         } else {
-            // empty array → remove all assigned services
             await this.stylistServiceRepo.delete({ stylist: { id } });
         }
 
@@ -292,18 +313,20 @@ export class StylistsService {
         );
 
         return {
-            message: `Services assigned successfully`,
+            message: 'Services assigned successfully',
             total: dto.serviceIds.length,
         };
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // DELETE /stylists/:id — Admin only (soft delete via status)
+    // DELETE /stylists/:id — Admin only (soft delete via numeric status)
     // ─────────────────────────────────────────────────────────────────────────
     async remove(id: number): Promise<{ message: string }> {
         const stylist = await this.findOneOrFail(id);
 
-        if (stylist.status as unknown as string === 'Deleted') {
+        // findOneOrFail already blocks DELETED stylists
+        // this check is explicit for 409 response
+        if (stylist.user.status === STATUS.DELETED) {
             throw new ConflictException('Stylist is already deleted');
         }
 
@@ -324,7 +347,10 @@ export class StylistsService {
             );
         }
 
-        await this.stylistRepo.update(id, { status: 'Deleted' as any });
+        // soft delete → numeric status = 127
+        await this.userRepo.update(stylist.user.id, {
+            status: STATUS.DELETED
+        });
 
         this.logger.log(`Stylist #${id} soft deleted`);
         return { message: 'Stylist deleted successfully' };
@@ -339,7 +365,8 @@ export class StylistsService {
             relations: ['user'],
         });
 
-        if (!stylist || stylist.status as unknown as string === 'Deleted') {
+        // use numeric status for soft delete check (not stylistsStatus enum)
+        if (!stylist || stylist.user.status === STATUS.DELETED) {
             throw new NotFoundException(`Stylist #${id} not found`);
         }
 

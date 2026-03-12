@@ -34,5 +34,5 @@ export class UpdateStylistDto {
     @ApiPropertyOptional({ enum: StylistStatus })
     @IsOptional()
     @IsEnum(StylistStatus)
-    status?: StylistStatus;
+    stylistStatus?: StylistStatus;
 }

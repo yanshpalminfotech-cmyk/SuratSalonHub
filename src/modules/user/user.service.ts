@@ -55,7 +55,7 @@ export class UsersService {
     ) { }
 
     async create(dto: CreateUserDto): Promise<User> {
-        const rounds = this.config.get<number>('auth.bcryptRounds');
+        const rounds = this.config.get<number>('security.bcryptRounds');
         const passwordHash = await bcrypt.hash(dto.password, (rounds)!);
 
         try {
@@ -94,7 +94,7 @@ export class UsersService {
                 if (message.includes('phone')) {
                     throw new ConflictException('Phone number is already registered');
                 }
-
+                console.log(message);
                 throw new ConflictException('User with these details already exists');
             }
 

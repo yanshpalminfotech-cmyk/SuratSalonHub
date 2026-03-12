@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Gender } from 'src/common/enums/gender.enum';
+import { Gender } from 'src/common/enums';
 
 
 export class CreateServiceDto {

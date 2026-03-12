@@ -85,8 +85,8 @@ export class StylistController {
     @ApiParam({ name: 'id', type: Number })
     @ApiResponse({ status: 200, description: '7-day working schedule' })
     @ApiResponse({ status: 404, description: 'Stylist not found' })
-    getSchedule(@Param('id', ParseIntPipe) id: number): Promise<any> {
-        return this.stylistsService.getSchedule(id);
+    getSchedule(@Param('id', ParseIntPipe) id: number, @CurrentUser('role') role: UserRole,): Promise<any> {
+        return this.stylistsService.getSchedule(id,role);
     }
 
     // ─────────────────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import { CustomerService } from '../customer/customer.service';
 import { StylistsService } from '../stylist/stylist.service';
 import { ServiceService } from '../service/service.service';
 import { TimeSlotService } from '../time-slot/time-slot.service';
+import { TimeSlot } from '../time-slot/entities/time-slot.entity';
 import { AppointmentStatus, StylistStatus, SlotStatus } from 'src/common/enums';
 
 export interface PaginatedAppointments {
@@ -58,7 +59,7 @@ export class AppointmentService {
     ): Promise<object> {
         // 1. Validate stylist is active
         const stylist = await this.stylistsService.findOneOrFail(stylistId);
-        if ((stylist.status as unknown as string) !== StylistStatus.ACTIVE) {
+        if ((stylist.stylistStatus) !== StylistStatus.ACTIVE) {
             throw new BadRequestException('Stylist is not available');
         }
 
@@ -98,7 +99,7 @@ export class AppointmentService {
 
         // 3. Validate stylist
         const stylist = await this.stylistsService.findOneOrFail(dto.stylistId);
-        if ((stylist.status as unknown as string) !== StylistStatus.ACTIVE) {
+        if ((stylist.stylistStatus) !== StylistStatus.ACTIVE) {
             throw new BadRequestException('Stylist is not available');
         }
 
@@ -114,8 +115,8 @@ export class AppointmentService {
 
         // 6. Calculate totals
         const totalDuration = services.reduce((sum, s) => sum + Number(s.durationMins), 0);
-        const totalAmount   = services.reduce((sum, s) => sum + Number(s.price), 0);
-        const endTime       = this.addMins(dto.startTime, totalDuration);
+        const totalAmount = services.reduce((sum, s) => sum + Number(s.price), 0);
+        const endTime = this.addMins(dto.startTime, totalDuration);
 
         // 7. TRANSACTION — slot booking + appointment creation (atomic)
         const savedAppointment = await this.dataSource.transaction(async (manager) => {
@@ -130,7 +131,7 @@ export class AppointmentService {
             );
 
             // b. Generate appointment code INSIDE transaction (race-condition safe)
-            const year  = new Date().getFullYear();
+            const year = new Date().getFullYear();
             const count = await manager
                 .createQueryBuilder(Appointment, 'a')
                 .where('a.appointmentCode LIKE :prefix', { prefix: `APT-${year}-%` })
@@ -140,25 +141,25 @@ export class AppointmentService {
             // c. Insert appointment
             const appt = manager.create(Appointment, {
                 appointmentCode,
-                customer:      { id: dto.customerId } as any,
-                stylist:       { id: dto.stylistId } as any,
-                date:          dto.date,
-                startTime:     dto.startTime,
+                customer: { id: dto.customerId } as any,
+                stylist: { id: dto.stylistId } as any,
+                date: dto.date,
+                startTime: dto.startTime,
                 endTime,
                 totalDuration,
                 totalAmount,
-                status:        AppointmentStatus.SCHEDULED,
-                notes:         dto.notes ?? null,
+                status: AppointmentStatus.SCHEDULED,
+                notes: dto.notes ?? null,
             });
             const saved = await manager.save(Appointment, appt);
 
             // d. Insert appointment_services snapshot
             const apptServices = services.map((svc) =>
                 manager.create(AppointmentServiceEntity, {
-                    appointment:  { id: saved.id } as any,
-                    service:      { id: svc.id } as any,
-                    serviceName:  svc.name,
-                    price:        Number(svc.price),
+                    appointment: { id: saved.id } as any,
+                    service: { id: svc.id } as any,
+                    serviceName: svc.name,
+                    price: Number(svc.price),
                     durationMins: Number(svc.durationMins),
                 }),
             );
@@ -167,8 +168,8 @@ export class AppointmentService {
             // e. Update time_slots with the real appointment_id
             await manager
                 .createQueryBuilder()
-                .update('time_slots')
-                .set({ appointment_id: saved.id })
+                .update(TimeSlot)
+                .set({ appointmentId: saved.id })
                 .where('stylist_id = :stylistId', { stylistId: dto.stylistId })
                 .andWhere('date = :date', { date: dto.date })
                 .andWhere('start_time >= :startTime', { startTime: dto.startTime })
@@ -204,10 +205,10 @@ export class AppointmentService {
             .skip((page - 1) * limit)
             .take(limit);
 
-        if (stylistId)  qb.andWhere('stylist.id = :stylistId', { stylistId });
+        if (stylistId) qb.andWhere('stylist.id = :stylistId', { stylistId });
         if (customerId) qb.andWhere('customer.id = :customerId', { customerId });
-        if (date)       qb.andWhere('appt.date = :date', { date });
-        if (status)     qb.andWhere('appt.status = :status', { status });
+        if (date) qb.andWhere('appt.date = :date', { date });
+        if (status) qb.andWhere('appt.status = :status', { status });
 
         const [appointments, total] = await qb.getManyAndCount();
 
@@ -291,30 +292,30 @@ export class AppointmentService {
     // PRIVATE — map Appointment entity → response DTO
     // ─────────────────────────────────────────────────────────────────────────
     private toResponseDto = (appt: Appointment): AppointmentResponseDto => ({
-        id:              appt.id,
+        id: appt.id,
         appointmentCode: appt.appointmentCode,
-        date:            appt.date,
-        startTime:       appt.startTime,
-        endTime:         appt.endTime,
-        totalDuration:   appt.totalDuration,
-        totalAmount:     appt.totalAmount,
-        status:          appt.status,
-        notes:           appt.notes,
+        date: appt.date,
+        startTime: appt.startTime,
+        endTime: appt.endTime,
+        totalDuration: appt.totalDuration,
+        totalAmount: appt.totalAmount,
+        status: appt.status,
+        notes: appt.notes,
         customer: {
-            id:           appt.customer.id,
+            id: appt.customer.id,
             customerCode: appt.customer.customerCode,
-            name:         appt.customer.name,
-            phone:        appt.customer.phone,
+            name: appt.customer.name,
+            phone: appt.customer.phone,
         },
         stylist: {
-            id:             appt.stylist.id,
+            id: appt.stylist.id,
             specialisation: appt.stylist.specialisation as unknown as string,
-            user:           { name: appt.stylist.user?.name ?? '' },
+            user: { name: appt.stylist.user?.name ?? '' },
         },
         services: (appt.appointmentServices ?? []).map((s) => ({
-            serviceId:   s.service?.id ?? 0,
+            serviceId: s.service?.id ?? 0,
             serviceName: s.serviceName,
-            price:       s.price,
+            price: s.price,
             durationMins: s.durationMins,
         })),
         createdAt: appt.createdAt,
@@ -380,8 +381,8 @@ export class AppointmentService {
     private todayString(): string {
         const d = new Date();
         const yyyy = d.getFullYear();
-        const mm   = String(d.getMonth() + 1).padStart(2, '0');
-        const dd   = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
         return `${yyyy}-${mm}-${dd}`;
     }
 }

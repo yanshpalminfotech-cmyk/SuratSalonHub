@@ -5,9 +5,13 @@ import {
     JoinColumn,
     Index,
     Unique,
+    CreateDateColumn,
+    UpdateDateColumn,
+    Column,
 } from 'typeorm';
 import { Stylist } from './stylist.entity';
 import { Service } from '../../service/entities/service.entity';
+import { STATUS } from 'src/common/constant/constant';
 
 @Entity('stylist_services')
 @Unique('uq_stylist_service', ['stylist', 'service'])  // no duplicate assignment
@@ -30,4 +34,13 @@ export class StylistService {
     })
     @JoinColumn({ name: 'service_id' })
     service!: Service;
+
+    @CreateDateColumn({ name: 'created_at' })
+    createdAt!: Date;
+
+    @UpdateDateColumn({ name: 'updated_at' })
+    updatedAt!: Date;
+
+    @Column({ type: 'tinyint', default: STATUS.ACTIVE })
+    status!: number;
 }

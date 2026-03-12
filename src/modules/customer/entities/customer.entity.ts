@@ -5,9 +5,11 @@ import {
     CreateDateColumn,
     UpdateDateColumn,
     Index,
+    OneToMany,
 } from 'typeorm';
 import { Gender } from 'src/common/enums';
 import { STATUS } from 'src/common/constant/constant';
+import { Appointment } from 'src/modules/appointment/entities/appointment.entity';
 
 @Entity('customers')
 @Index('idx_customers_phone', ['phone'])
@@ -45,4 +47,7 @@ export class Customer {
 
     @UpdateDateColumn({ name: 'updated_at' })
     updatedAt!: Date;
+
+    @OneToMany(() => Appointment, (appointment) => appointment.customer)
+    appointments!: Appointment[];
 }

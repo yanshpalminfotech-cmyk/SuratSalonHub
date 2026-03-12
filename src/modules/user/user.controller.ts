@@ -24,7 +24,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { QueryUserDto } from './dto/query-user.dto';
-import { UserRole } from 'src/common/enums/roles.enum';
+import { UserRole } from 'src/common/enums';
 import { User } from './entities/user.entity';
 import { Roles } from 'src/common/decorator/roles.decorator';
 import { CurrentUser } from 'src/common/decorator/current-user.decorator';
@@ -63,7 +63,7 @@ export class UsersController {
         @Body() dto: ChangePasswordDto, @Req() req: Request,
     ): Promise<{ message: string }> {
         const rawAccessToken = req.headers.authorization?.split(' ')[1] ?? '';
-        return this.usersService.changePassword(user.id, dto,rawAccessToken);
+        return this.usersService.changePassword(user.id, dto, rawAccessToken);
     }
 
     // ─────────────────────────────────────────────────────────────────────

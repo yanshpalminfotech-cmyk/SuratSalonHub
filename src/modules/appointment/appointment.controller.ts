@@ -42,14 +42,14 @@ export class AppointmentController {
     @Roles(UserRole.ADMIN, UserRole.RECEPTIONIST)
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Get available start times for a stylist + service combo — Admin + Receptionist' })
-    @ApiQuery({ name: 'stylistId',  required: true,  type: Number })
-    @ApiQuery({ name: 'date',       required: true,  type: String, description: 'YYYY-MM-DD' })
-    @ApiQuery({ name: 'serviceIds', required: true,  type: String, description: 'Comma-separated service IDs e.g. 1,2,3' })
+    @ApiQuery({ name: 'stylistId', required: true, type: Number })
+    @ApiQuery({ name: 'date', required: true, type: String, description: 'YYYY-MM-DD' })
+    @ApiQuery({ name: 'serviceIds', required: true, type: String, description: 'Comma-separated service IDs e.g. 1,2,3' })
     @ApiResponse({ status: 200, description: 'Available start times returned' })
     async getAvailableSlots(
-        @Query('stylistId',  ParseIntPipe) stylistId:  number,
-        @Query('date')                     date:       string,
-        @Query('serviceIds')               serviceIdsRaw: string,
+        @Query('stylistId', ParseIntPipe) stylistId: number,
+        @Query('date') date: string,
+        @Query('serviceIds') serviceIdsRaw: string,
     ): Promise<object> {
         const serviceIds = serviceIdsRaw
             .split(',')
