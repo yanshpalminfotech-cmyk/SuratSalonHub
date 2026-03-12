@@ -20,6 +20,7 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { TimeSlotModule } from './modules/time-slot/time-slot.module';
 import { AppointmentModule } from './modules/appointment/appointment.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
@@ -41,7 +42,7 @@ import { PaymentModule } from './modules/payment/payment.module';
         },
       }),
     }),
-    UserModule, AuthModule, RedisModule, ServiceCategoryModule, ServiceModule, StylistModule, CustomerModule, TimeSlotModule, AppointmentModule, PaymentModule
+    UserModule, AuthModule, RedisModule, ServiceCategoryModule, ServiceModule, StylistModule, CustomerModule, TimeSlotModule, AppointmentModule, PaymentModule, ReportModule
   ],
   controllers: [AppController],
   providers: [{ provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },

@@ -276,6 +276,236 @@ export class AppointmentService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /appointments/my-schedule — Stylist daily schedule (raw SQL)
+    // ─────────────────────────────────────────────────────────────────────────
+    // async getMySchedule(userId: number, date?: string): Promise<unknown[]> {
+    //     // default to today if date not provided
+    //     const targetDate = date ?? this.todayString();
+
+    //     // Query 1 — appointments for this stylist on the given date
+    //     const appointments: Record<string, unknown>[] = await this.dataSource.query(
+    //         `SELECT
+    //            a.id               AS appointmentId,
+    //            a.appointment_code AS appointmentCode,
+    //            a.date             AS date,
+    //            a.start_time       AS startTime,
+    //            a.end_time         AS endTime,
+    //            a.total_duration   AS totalDuration,
+    //            a.status           AS status,
+    //            a.notes            AS notes,
+    //            c.name             AS customerName,
+    //            c.phone            AS customerPhone,
+    //            c.gender           AS customerGender
+    //          FROM appointments a
+    //          INNER JOIN stylists  st ON st.id = a.stylist_id
+    //          INNER JOIN customers c  ON c.id  = a.customer_id
+    //          WHERE st.user_id = ?
+    //            AND DATE(a.date) = ?
+    //          ORDER BY a.start_time ASC`,
+    //         [userId, targetDate],
+    //     );
+
+    //     // return empty array early — no need to query services
+    //     if (appointments.length === 0) return [];
+
+    //     // Query 2 — services for all fetched appointments
+    //     const appointmentIds = appointments.map((a) => Number(a.appointmentId));
+
+    //     const services: Record<string, unknown>[] = await this.dataSource.query(
+    //         `SELECT
+    //            as_.appointment_id AS appointmentId,
+    //            as_.service_name   AS serviceName,
+    //            as_.duration_mins  AS durationMins
+    //          FROM appointment_services as_
+    //          WHERE as_.appointment_id IN (?)
+    //          ORDER BY as_.appointment_id, as_.service_name`,
+    //         [appointmentIds],
+    //     );
+
+    //     // group services under their appointment
+    //     const servicesMap = services.reduce(
+    //         (acc: Record<number, { serviceName: string; durationMins: number }[]>, s) => {
+    //             const key = Number(s.appointmentId);
+    //             if (!acc[key]) acc[key] = [];
+    //             acc[key].push({
+    //                 serviceName:  String(s.serviceName),
+    //                 durationMins: Number(s.durationMins),
+    //             });
+    //             return acc;
+    //         },
+    //         {},
+    //     );
+
+    //     // assemble response — intentionally exclude all financial data
+    //     return appointments.map((a) => ({
+    //         appointmentId:   Number(a.appointmentId),
+    //         appointmentCode: a.appointmentCode,
+    //         date:            a.date,
+    //         startTime:       a.startTime,
+    //         endTime:         a.endTime,
+    //         totalDuration:   Number(a.totalDuration),
+    //         status:          a.status,
+    //         notes:           a.notes ?? null,
+    //         customer: {
+    //             name:   a.customerName,
+    //             phone:  a.customerPhone,
+    //             gender: a.customerGender,
+    //         },
+    //         services: servicesMap[Number(a.appointmentId)] ?? [],
+    //     }));
+    // }
+    async getMySchedule(userId: number, date?: string): Promise<unknown[]> {
+        const targetDate = date ?? new Date().toISOString().split('T')[0];
+
+        // Query 1 — appointments via QueryBuilder
+        // TypeORM handles param binding safely — no manual placeholders
+        const appointments = await this.dataSource
+            .getRepository(Appointment)
+            .createQueryBuilder('a')
+            .innerJoin('a.stylist', 'st')
+            .innerJoin('st.user', 'u')
+            .innerJoin('a.customer', 'c')
+            .select([
+                'a.id',
+                'a.appointmentCode',
+                'a.date',
+                'a.startTime',
+                'a.endTime',
+                'a.totalDuration',
+                'a.status',
+                'a.notes',
+                'c.name',
+                'c.phone',
+                'c.gender',
+            ])
+            .where('u.id = :userId', { userId })
+            .andWhere('a.date = :date', { date: targetDate })
+            .orderBy('a.startTime', 'ASC')
+            .getMany();
+
+        if (appointments.length === 0) return [];
+
+        // Query 2 — services via QueryBuilder
+        // IN (:...ids) — TypeORM expands array automatically ✅
+        const appointmentIds = appointments.map((a) => a.id);
+
+        const services = await this.dataSource
+            .getRepository(AppointmentServiceEntity)
+            .createQueryBuilder('as')
+            .innerJoin('as.appointment', 'appt')
+            .select([
+                'as.id',
+                'as.serviceName',
+                'as.durationMins',
+                'appt.id',
+                // intentionally NO as.price — stylist cannot see billing
+            ])
+            .where('appt.id IN (:...ids)', { ids: appointmentIds })
+            .orderBy('as.serviceName', 'ASC')
+            .getMany();
+
+        // group services under their appointment
+        const servicesMap = services.reduce(
+            (acc: Record<number, { serviceName: string; durationMins: number }[]>, s) => {
+                const apptId = s.appointment.id;
+                if (!acc[apptId]) acc[apptId] = [];
+                acc[apptId].push({
+                    serviceName: s.serviceName,
+                    durationMins: s.durationMins,
+                });
+                return acc;
+            },
+            {},
+        );
+
+        // assemble — no financial data
+        return appointments.map((a) => ({
+            appointmentId: a.id,
+            appointmentCode: a.appointmentCode,
+            date: a.date,
+            startTime: a.startTime,
+            endTime: a.endTime,
+            totalDuration: a.totalDuration,
+            status: a.status,
+            notes: a.notes ?? null,
+            customer: {
+                name: a.customer.name,
+                phone: a.customer.phone,
+                gender: a.customer.gender,
+            },
+            services: servicesMap[a.id] ?? [],
+        }));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PATCH /appointments/:id/services/:serviceId/complete
+    // ─────────────────────────────────────────────────────────────────────────
+    async markServiceComplete(
+        appointmentId: number,
+        serviceId: number,
+        userId: number,
+    ): Promise<{ message: string; appointmentCompleted: boolean }> {
+        // Step 1 — Verify stylist owns this appointment
+        const stylistRepo = this.dataSource.getRepository('Stylist');
+        const st = await stylistRepo.findOne({ where: { user: { id: userId } } });
+        if (!st) {
+            throw new ConflictException('Stylist profile not found');
+        }
+
+        const appt = await this.appointmentRepo.findOne({
+            where: { id: appointmentId, stylist: { id: st.id } },
+        });
+
+        if (!appt) {
+            throw new ConflictException('This appointment does not belong to you');
+        }
+
+        // Step 2 — Verify appointment is Scheduled
+        if (appt.status !== AppointmentStatus.SCHEDULED) {
+            throw new BadRequestException(`Cannot mark service complete on a ${appt.status} appointment`);
+        }
+
+        // Step 3 — Verify service belongs to appointment
+        const apptSvc = await this.apptServiceRepo.findOne({
+            where: { id: serviceId, appointment: { id: appointmentId } },
+        });
+
+        if (!apptSvc) {
+            throw new NotFoundException('Service not found in this appointment');
+        }
+
+        // Step 4 — Mark service complete
+        if (apptSvc.isCompleted) {
+            throw new BadRequestException('Service already marked complete');
+        }
+
+        await this.apptServiceRepo.update({ id: serviceId }, { isCompleted: true });
+
+        // Step 5 — Check if ALL services are now complete
+        const allServices = await this.apptServiceRepo.find({
+            where: { appointment: { id: appointmentId } },
+        });
+
+        const total = allServices.length;
+        const completed = allServices.filter(s => s.isCompleted || s.id === serviceId).length;
+
+        // Step 6 — If all complete → auto-advance appointment
+        if (completed === total) {
+            await this.dataSource.transaction(async (manager) => {
+                await manager.update(Appointment, appointmentId, { status: AppointmentStatus.COMPLETED });
+
+                // Slots are freed (available) but appointment_id is removed
+                await this.timeSlotService.releaseSlots(appointmentId, manager);
+            });
+
+            this.logger.log(`Appointment #${appointmentId} auto-completed: all services done`);
+            return { message: 'All services complete. Appointment marked Completed.', appointmentCompleted: true };
+        }
+
+        const remaining = total - completed;
+        return { message: `Service marked complete. ${remaining} service(s) remaining.`, appointmentCompleted: false };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
     // INTERNAL — reused by PaymentModule etc.
     // ─────────────────────────────────────────────────────────────────────────
     async findOneOrFail(id: number): Promise<Appointment> {

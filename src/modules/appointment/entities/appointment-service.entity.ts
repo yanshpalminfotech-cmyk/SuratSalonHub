@@ -41,4 +41,7 @@ export class AppointmentServiceEntity {
 
     @Column({ name: 'duration_mins', type: 'smallint', unsigned: true })
     durationMins!: number;
+
+    @Column({ name: 'is_completed', type: 'boolean', default: false })
+    isCompleted!: boolean;
 }

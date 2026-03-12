@@ -25,8 +25,10 @@ import { QueryAppointmentDto } from './dto/query-appointment.dto';
 import { AppointmentResponseDto } from './dto/appointment-response.dto';
 import { UserRole } from 'src/common/enums';
 import { Roles } from 'src/common/decorator/roles.decorator';
+import { CurrentUser } from 'src/common/decorator/current-user.decorator';
 import { JwtAuthGuard } from 'src/common/guard/auth.guard';
 import { RolesGuard } from 'src/common/guard/roles.guard';
+import { User } from 'src/modules/user/entities/user.entity';
 
 @ApiTags('Appointments')
 @ApiBearerAuth()
@@ -59,6 +61,23 @@ export class AppointmentController {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /appointments/my-schedule — Stylist only
+    // ─────────────────────────────────────────────────────────────────────────
+    @Get('my-schedule')
+    @Roles(UserRole.STYLIST)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Get my daily schedule — Stylist only' })
+    @ApiQuery({ name: 'date', required: false, example: '2025-03-15' })
+    @ApiResponse({ status: 200, description: 'Stylist daily appointment schedule' })
+    @ApiResponse({ status: 403, description: 'Forbidden — Stylist role only' })
+    getMySchedule(
+        @CurrentUser() user: User,
+        @Query('date') date?: string,
+    ): Promise<unknown[]> {
+        return this.appointmentService.getMySchedule(user.id, date);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /appointments — Admin + Receptionist
     // ─────────────────────────────────────────────────────────────────────────
     @Post()
@@ -82,6 +101,27 @@ export class AppointmentController {
     @ApiResponse({ status: 200, description: 'Paginated appointments list' })
     findAll(@Query() query: QueryAppointmentDto): Promise<PaginatedAppointments> {
         return this.appointmentService.findAll(query);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PATCH /appointments/:id/services/:serviceId/complete
+    // ─────────────────────────────────────────────────────────────────────────
+    @Patch(':id/services/:serviceId/complete')
+    @Roles(UserRole.STYLIST)
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Mark an individual service as completed — Stylist only' })
+    @ApiParam({ name: 'id', type: Number })
+    @ApiParam({ name: 'serviceId', type: Number })
+    @ApiResponse({ status: 200, description: 'Service marked complete' })
+    @ApiResponse({ status: 400, description: 'Appointment not scheduled / Service already complete' })
+    @ApiResponse({ status: 403, description: 'Not your appointment' })
+    @ApiResponse({ status: 404, description: 'Service not found in appointment' })
+    markServiceComplete(
+        @Param('id', ParseIntPipe) id: number,
+        @Param('serviceId', ParseIntPipe) serviceId: number,
+        @CurrentUser() user: User,
+    ): Promise<{ message: string; appointmentCompleted: boolean }> {
+        return this.appointmentService.markServiceComplete(id, serviceId, user.id);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
