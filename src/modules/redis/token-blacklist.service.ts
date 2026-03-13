@@ -1,6 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
-import { REDIS_CLIENT } from '../constant/constant';
+import { REDIS_CLIENT } from 'src/common/constant/constant';
+
 
 @Injectable()
 export class TokenBlacklistService {

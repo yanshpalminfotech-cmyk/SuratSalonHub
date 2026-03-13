@@ -33,7 +33,7 @@ export class AppointmentResponseDto {
     @ApiProperty() endTime!: string;
     @ApiProperty() totalDuration!: number;
     @ApiProperty() totalAmount!: number;
-    @ApiProperty({ enum: AppointmentStatus }) status!: AppointmentStatus;
+    @ApiProperty({ enum: AppointmentStatus }) appointmentStatus!: AppointmentStatus;
     @ApiProperty({ nullable: true }) notes!: string | null;
     @ApiProperty({ type: () => ApptCustomerDto }) customer!: ApptCustomerDto;
     @ApiProperty({ type: () => ApptStylistDto }) stylist!: ApptStylistDto;

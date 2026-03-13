@@ -13,7 +13,6 @@ import { User } from '../../user/entities/user.entity';
 import { StylistSpecialisation, StylistStatus } from 'src/common/enums/index';
 import { StylistWorkingSchedule } from './stylist-working-schedule.entity';
 import { StylistService } from './stylist-service.entity';
-import { STATUS } from 'src/common/constant/constant';
 
 
 @Entity('stylists')
@@ -47,6 +46,7 @@ export class Stylist {
 
     @Index('idx_stylist_status')
     @Column({
+        name: 'status',
         type: 'enum',
         enum: StylistStatus,
         default: StylistStatus.ACTIVE,

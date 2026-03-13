@@ -23,7 +23,7 @@ import { STATUS } from 'src/common/constant/constant';
 import { MySqlError } from 'src/common/interface/mysql-error.interface';
 import { JwtPayload } from 'src/common/strategy/access.strategy';
 import { JwtService } from '@nestjs/jwt';
-import { TokenBlacklistService } from 'src/common/services/token-blacklist.service';
+import { TokenBlacklistService } from '../redis/token-blacklist.service';
 import { RefreshToken } from '../auth/entities/refreshtoken.entity';
 import { StylistsService } from '../stylist/stylist.service';
 

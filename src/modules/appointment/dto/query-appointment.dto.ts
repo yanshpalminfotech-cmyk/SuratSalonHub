@@ -26,7 +26,7 @@ export class QueryAppointmentDto {
     @ApiPropertyOptional({ enum: AppointmentStatus })
     @IsOptional()
     @IsEnum(AppointmentStatus)
-    status?: AppointmentStatus;
+    appointmentStatus?: AppointmentStatus;
 
     @ApiPropertyOptional({ default: 1 })
     @IsOptional()

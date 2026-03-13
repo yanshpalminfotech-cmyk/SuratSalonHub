@@ -12,13 +12,14 @@ USE surat_salon_db;
 -- Users Table
 CREATE TABLE users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    role ENUM('ADMIN', 'STYLIST', 'RECEPTIONIST') NOT NULL,
+    role ENUM('Admin', 'Stylist', 'Receptionist') NOT NULL,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     phone VARCHAR(15) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     is_locked BOOLEAN NOT NULL DEFAULT 0,
     failed_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    status TINYINT NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -45,6 +46,7 @@ CREATE TABLE stylists (
     user_id INT UNSIGNED NOT NULL UNIQUE,
     specialisation ENUM('Hair Stylist', 'Beautician', 'Makeup Artist', 'Spa Therapist') NOT NULL,
     commission_rate DECIMAL(5, 2) NOT NULL,
+    bio TEXT NULL,
     status ENUM('Active', 'On Leave', 'Deleted') NOT NULL DEFAULT 'Active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -52,7 +54,7 @@ CREATE TABLE stylists (
 );
 
 -- Stylist Working Schedule
-CREATE TABLE stylist_working_schedule (
+CREATE TABLE stylist_working_schedules (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     stylist_id INT UNSIGNED NOT NULL,
     day_of_week ENUM('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') NOT NULL,
@@ -134,7 +136,8 @@ CREATE TABLE appointments (
     end_time TIME NOT NULL,
     total_duration SMALLINT UNSIGNED NOT NULL,
     total_amount DECIMAL(10, 2) NOT NULL,
-    status ENUM('Scheduled', 'Completed', 'Cancelled', 'No-Show') NOT NULL DEFAULT 'Scheduled',
+    appointment_status ENUM('Scheduled', 'Completed', 'Cancelled', 'No-Show') NOT NULL DEFAULT 'Scheduled',
+    status TINYINT NOT NULL DEFAULT 1,
     notes TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

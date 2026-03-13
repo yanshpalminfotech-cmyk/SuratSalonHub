@@ -175,7 +175,10 @@ export class TimeSlotService implements OnApplicationBootstrap {
         manager: EntityManager,
     ): Promise<TimeSlot[]> {
         const slotsNeeded = Math.ceil(totalDurationMins / SLOT_DURATION_MINS);
-        const endTime = minsToTime(timeToMins(startTime) + totalDurationMins);
+        // snap the end time to the nearest slot boundary, otherwise the SQL query 
+        // won't capture the final slot if totalDurationMins (e.g. 40) is not a multiple of 15.
+        const gridDurationMins = slotsNeeded * SLOT_DURATION_MINS;
+        const endTime = minsToTime(timeToMins(startTime) + gridDurationMins);
 
         // SELECT ... FOR UPDATE — pessimistic row lock
         const slots = await manager

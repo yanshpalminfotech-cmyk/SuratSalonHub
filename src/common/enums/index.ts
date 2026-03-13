@@ -22,7 +22,7 @@ export enum DayOfWeek {
 }
 export enum Gender {
     UNISEX = 'Unisex',
-    Male = 'Male',
+    MALE = 'Male',
     FEMALE = 'Female'
 }
 

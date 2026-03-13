@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../modules/user/entities/user.entity';
-import { TokenBlacklistService } from './../services/token-blacklist.service';
+import { TokenBlacklistService } from '../../modules/redis/token-blacklist.service';
 import { STATUS } from '../constant/constant';
 
 export interface JwtPayload {

@@ -18,7 +18,9 @@ import { StylistsService } from '../stylist/stylist.service';
 import { ServiceService } from '../service/service.service';
 import { TimeSlotService } from '../time-slot/time-slot.service';
 import { TimeSlot } from '../time-slot/entities/time-slot.entity';
-import { AppointmentStatus, StylistStatus, SlotStatus } from 'src/common/enums';
+import { STATUS } from 'src/common/constant/constant';
+import { AppointmentStatus, StylistStatus, SlotStatus, PaymentStatus, PaymentMethod } from 'src/common/enums';
+import { Payment } from '../payment/entities/payment.entity';
 
 export interface PaginatedAppointments {
     data: AppointmentResponseDto[];
@@ -148,7 +150,8 @@ export class AppointmentService {
                 endTime,
                 totalDuration,
                 totalAmount,
-                status: AppointmentStatus.SCHEDULED,
+                appointmentStatus: AppointmentStatus.SCHEDULED,
+                status: STATUS.ACTIVE,
                 notes: dto.notes ?? null,
             });
             const saved = await manager.save(Appointment, appt);
@@ -177,6 +180,18 @@ export class AppointmentService {
                 .andWhere('status = :booked', { booked: SlotStatus.BOOKED })
                 .execute();
 
+            // f. Create a Pending Payment record tying it to this appointment
+            const payment = manager.create(Payment, {
+                appointment: { id: saved.id } as any,
+                amount: totalAmount,
+                paymentMethod: PaymentMethod.CASH, // Default to cash, updated upon collection
+                paymentStatus: PaymentStatus.PENDING,
+                transactionRef: null,
+                notes: null,
+                paidAt: null,
+            });
+            await manager.save(Payment, payment);
+
             return saved;
         });
 
@@ -192,7 +207,7 @@ export class AppointmentService {
     // GET /appointments (paginated)
     // ─────────────────────────────────────────────────────────────────────────
     async findAll(query: QueryAppointmentDto): Promise<PaginatedAppointments> {
-        const { stylistId, customerId, date, status, page = 1, limit = 10 } = query;
+        const { stylistId, customerId, date, appointmentStatus, page = 1, limit = 10 } = query;
 
         const qb = this.appointmentRepo
             .createQueryBuilder('appt')
@@ -205,10 +220,12 @@ export class AppointmentService {
             .skip((page - 1) * limit)
             .take(limit);
 
+        qb.andWhere('appt.status = :activeStatus', { activeStatus: STATUS.ACTIVE });
+
         if (stylistId) qb.andWhere('stylist.id = :stylistId', { stylistId });
         if (customerId) qb.andWhere('customer.id = :customerId', { customerId });
         if (date) qb.andWhere('appt.date = :date', { date });
-        if (status) qb.andWhere('appt.status = :status', { status });
+        if (appointmentStatus) qb.andWhere('appt.appointmentStatus = :appointmentStatus', { appointmentStatus });
 
         const [appointments, total] = await qb.getManyAndCount();
 
@@ -234,10 +251,10 @@ export class AppointmentService {
     // ─────────────────────────────────────────────────────────────────────────
     async cancel(id: number): Promise<AppointmentResponseDto> {
         const appt = await this.findOneOrFail(id);
-        this.guardTerminalStatus(appt.status);
+        this.guardTerminalStatus(appt.appointmentStatus);
 
         await this.dataSource.transaction(async (manager) => {
-            await manager.update(Appointment, id, { status: AppointmentStatus.CANCELLED });
+            await manager.update(Appointment, id, { appointmentStatus: AppointmentStatus.CANCELLED });
             await this.timeSlotService.releaseSlots(id, manager);
         });
 
@@ -250,9 +267,9 @@ export class AppointmentService {
     // ─────────────────────────────────────────────────────────────────────────
     async complete(id: number): Promise<AppointmentResponseDto> {
         const appt = await this.findOneOrFail(id);
-        this.guardTerminalStatus(appt.status);
+        this.guardTerminalStatus(appt.appointmentStatus);
 
-        await this.appointmentRepo.update(id, { status: AppointmentStatus.COMPLETED });
+        await this.appointmentRepo.update(id, { appointmentStatus: AppointmentStatus.COMPLETED });
         // Slots stay BOOKED — appointment was used
 
         this.logger.log(`Appointment #${id} completed`);
@@ -264,14 +281,12 @@ export class AppointmentService {
     // ─────────────────────────────────────────────────────────────────────────
     async noShow(id: number): Promise<AppointmentResponseDto> {
         const appt = await this.findOneOrFail(id);
-        this.guardTerminalStatus(appt.status);
+        this.guardTerminalStatus(appt.appointmentStatus);
 
-        await this.dataSource.transaction(async (manager) => {
-            await manager.update(Appointment, id, { status: AppointmentStatus.NO_SHOW });
-            await this.timeSlotService.releaseSlots(id, manager);
-        });
+        await this.appointmentRepo.update(id, { appointmentStatus: AppointmentStatus.NO_SHOW });
+        // Slots stay BOOKED — the time has already passed or was held for this no-show appointment
 
-        this.logger.log(`Appointment #${id} marked no-show, slots released`);
+        this.logger.log(`Appointment #${id} marked no-show, slots remain booked`);
         return this.findOne(id);
     }
 
@@ -372,7 +387,7 @@ export class AppointmentService {
                 'a.startTime',
                 'a.endTime',
                 'a.totalDuration',
-                'a.status',
+                'a.appointmentStatus',
                 'a.notes',
                 'c.name',
                 'c.phone',
@@ -380,6 +395,7 @@ export class AppointmentService {
             ])
             .where('u.id = :userId', { userId })
             .andWhere('a.date = :date', { date: targetDate })
+            .andWhere('a.status = :activeStatus', { activeStatus: STATUS.ACTIVE })
             .orderBy('a.startTime', 'ASC')
             .getMany();
 
@@ -426,7 +442,7 @@ export class AppointmentService {
             startTime: a.startTime,
             endTime: a.endTime,
             totalDuration: a.totalDuration,
-            status: a.status,
+            appointmentStatus: a.appointmentStatus,
             notes: a.notes ?? null,
             customer: {
                 name: a.customer.name,
@@ -453,7 +469,7 @@ export class AppointmentService {
         }
 
         const appt = await this.appointmentRepo.findOne({
-            where: { id: appointmentId, stylist: { id: st.id } },
+            where: { id: appointmentId, stylist: { id: st.id }, status: STATUS.ACTIVE },
         });
 
         if (!appt) {
@@ -461,8 +477,8 @@ export class AppointmentService {
         }
 
         // Step 2 — Verify appointment is Scheduled
-        if (appt.status !== AppointmentStatus.SCHEDULED) {
-            throw new BadRequestException(`Cannot mark service complete on a ${appt.status} appointment`);
+        if (appt.appointmentStatus !== AppointmentStatus.SCHEDULED) {
+            throw new BadRequestException(`Cannot mark service complete on a ${appt.appointmentStatus} appointment`);
         }
 
         // Step 3 — Verify service belongs to appointment
@@ -491,12 +507,8 @@ export class AppointmentService {
 
         // Step 6 — If all complete → auto-advance appointment
         if (completed === total) {
-            await this.dataSource.transaction(async (manager) => {
-                await manager.update(Appointment, appointmentId, { status: AppointmentStatus.COMPLETED });
-
-                // Slots are freed (available) but appointment_id is removed
-                await this.timeSlotService.releaseSlots(appointmentId, manager);
-            });
+            await this.appointmentRepo.update(appointmentId, { appointmentStatus: AppointmentStatus.COMPLETED });
+            // Slots stay BOOKED — appointment was used
 
             this.logger.log(`Appointment #${appointmentId} auto-completed: all services done`);
             return { message: 'All services complete. Appointment marked Completed.', appointmentCompleted: true };
@@ -510,7 +522,7 @@ export class AppointmentService {
     // ─────────────────────────────────────────────────────────────────────────
     async findOneOrFail(id: number): Promise<Appointment> {
         const appt = await this.appointmentRepo.findOne({
-            where: { id },
+            where: { id, status: STATUS.ACTIVE },
             relations: ['customer', 'stylist', 'stylist.user', 'appointmentServices', 'appointmentServices.service'],
         });
 
@@ -529,7 +541,7 @@ export class AppointmentService {
         endTime: appt.endTime,
         totalDuration: appt.totalDuration,
         totalAmount: appt.totalAmount,
-        status: appt.status,
+        appointmentStatus: appt.appointmentStatus,
         notes: appt.notes,
         customer: {
             id: appt.customer.id,

@@ -18,7 +18,7 @@ import { AppointmentServiceEntity } from './appointment-service.entity';
 @Index('idx_appt_customer_id', ['customer'])
 @Index('idx_appt_stylist_id', ['stylist'])
 @Index('idx_appt_date', ['date'])
-@Index('idx_appt_status', ['status'])
+@Index('idx_appt_status', ['appointmentStatus'])
 export class Appointment {
     @PrimaryGeneratedColumn({ unsigned: true })
     id!: number;
@@ -55,8 +55,11 @@ export class Appointment {
     @Column({ name: 'total_amount', type: 'decimal', precision: 10, scale: 2 })
     totalAmount!: number;                  // snapshot sum of prices
 
-    @Column({ type: 'enum', enum: AppointmentStatus, default: AppointmentStatus.SCHEDULED })
-    status!: AppointmentStatus;
+    @Column({ name: 'appointment_status', type: 'enum', enum: AppointmentStatus, default: AppointmentStatus.SCHEDULED })
+    appointmentStatus!: AppointmentStatus;
+
+    @Column({ type: 'tinyint', default: 1, comment: '1 for active, 0 for inactive, 127 for deleted' })
+    status!: number;
 
     @Column({ type: 'text', nullable: true, default: null })
     notes!: string | null;
