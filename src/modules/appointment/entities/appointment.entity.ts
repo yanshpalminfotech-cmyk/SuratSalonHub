@@ -19,6 +19,9 @@ import { AppointmentServiceEntity } from './appointment-service.entity';
 @Index('idx_appt_stylist_id', ['stylist'])
 @Index('idx_appt_date', ['date'])
 @Index('idx_appt_status', ['appointmentStatus'])
+@Index('idx_customer_id_status_appointment_status_date', ['id', 'status', 'appointmentStatus', 'date'])
+// @Index('idx_appointments_date_status', ['date', 'appointmentStatus'])
+// @Index('index_appointmenst_date_appointmentStatus_status', ['data', 'appointmentStatus', 'status'])
 export class Appointment {
     @PrimaryGeneratedColumn({ unsigned: true })
     id!: number;

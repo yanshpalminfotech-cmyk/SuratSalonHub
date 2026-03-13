@@ -30,7 +30,6 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
             throw new UnauthorizedException('Refresh token not provided');
         }
 
-        // passport attaches return value to request.user
         return { ...payload, refreshToken };
     }
 }

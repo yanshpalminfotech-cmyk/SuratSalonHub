@@ -14,6 +14,7 @@ import { Appointment } from 'src/modules/appointment/entities/appointment.entity
 @Entity('customers')
 @Index('idx_customers_phone', ['phone'])
 @Index('idx_customers_status', ['status'])
+
 export class Customer {
     @PrimaryGeneratedColumn({ unsigned: true })
     id!: number;

@@ -74,8 +74,8 @@ export class StylistsService {
             specialisation,
             commissionRate,
             bio: null,
-            stylistsStatus: StylistStatus.ACTIVE,  // availability enum
-            status: STATUS.ACTIVE,  // soft-delete numeric
+            stylistsStatus: StylistStatus.ACTIVE,
+            status: STATUS.ACTIVE,
         });
 
         const savedStylist = await manager.save(Stylist, stylist);
@@ -153,15 +153,12 @@ export class StylistsService {
             relations: ['user', 'workingSchedules'],
         });
 
-        // 2. If the Stylist ID doesn't exist at all
         if (!stylist) {
             throw new NotFoundException(`Stylist with ID ${id} not found.`);
         }
 
-        // 3. Status Check (Bypass if the requester is an ADMIN)
         if (userRole !== UserRole.ADMIN) {
 
-            // Check the status from your Stylist entity (StylistStatus enum)
             if (stylist.user.status === STATUS.DELETED) {
                 throw new NotFoundException('The requested stylist is no longer available.');
             }
@@ -173,7 +170,6 @@ export class StylistsService {
             }
         }
 
-        // 4. Sort schedules by DayOfWeek index before returning
         if (stylist.workingSchedules) {
             stylist.workingSchedules.sort(
                 (a, b) => DAY_ORDER.indexOf(a.dayOfWeek) - DAY_ORDER.indexOf(b.dayOfWeek),
@@ -207,8 +203,6 @@ export class StylistsService {
     async update(id: number, dto: UpdateStylistDto): Promise<Stylist> {
         const stylist = await this.findOneOrFail(id);
 
-        // dto.status maps to stylistsStatus (Active / On Leave availability enum)
-        // NOT the numeric status field (which is for soft delete only)
         if (dto.specialisation !== undefined) stylist.specialisation = dto.specialisation;
         if (dto.commissionRate !== undefined) stylist.commissionRate = dto.commissionRate;
         if (dto.bio !== undefined) stylist.bio = dto.bio?.trim() ?? null;
@@ -324,13 +318,10 @@ export class StylistsService {
     async remove(id: number): Promise<{ message: string }> {
         const stylist = await this.findOneOrFail(id);
 
-        // findOneOrFail already blocks DELETED stylists
-        // this check is explicit for 409 response
         if (stylist.user.status === STATUS.DELETED) {
             throw new ConflictException('Stylist is already deleted');
         }
 
-        // ── guard: no scheduled appointments ─────────────────────────────
         const scheduledCount = await this.dataSource
             .getRepository('appointments')
             .count({
@@ -347,7 +338,6 @@ export class StylistsService {
             );
         }
 
-        // soft delete → numeric status = 127
         await this.userRepo.update(stylist.user.id, {
             status: STATUS.DELETED
         });
@@ -365,7 +355,6 @@ export class StylistsService {
             relations: ['user'],
         });
 
-        // use numeric status for soft delete check (not stylistsStatus enum)
         if (!stylist || stylist.user.status === STATUS.DELETED) {
             throw new NotFoundException(`Stylist #${id} not found`);
         }

@@ -7,7 +7,7 @@ import { DailyRevenueReport } from './interfaces/daily-revenue-report.interface'
 export class ReportService {
   private readonly logger = new Logger(ReportService.name);
 
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly dataSource: DataSource) { }
 
   private formatDate(d: Date): string {
     const y = d.getFullYear();
@@ -16,7 +16,7 @@ export class ReportService {
     return `${y}-${m}-${day}`;
   }
 
-  @Cron('30 23 * * *')
+  @Cron('30 11 * * *')
   async generateDailyRevenueReport(): Promise<void> {
     const today = new Date();
     const tomorrow = new Date(today);
@@ -75,7 +75,6 @@ export class ReportService {
         this.dataSource.query(QUERY_3, [start, end]),
       ]);
 
-      // extract values safely — partial report better than no report
       const summary = s.status === 'fulfilled' && s.value.length ? s.value[0] : null;
       const service = svc.status === 'fulfilled' && svc.value.length ? svc.value[0] : null;
       const stylist = st.status === 'fulfilled' && st.value.length ? st.value[0] : null;
@@ -91,10 +90,10 @@ export class ReportService {
         mostBookedService: service?.serviceName ?? null,
         topStylist: stylist
           ? {
-              name: stylist.stylistName,
-              appointmentCount: Number(stylist.appointmentCount),
-              revenue: Number(stylist.revenue),
-            }
+            name: stylist.stylistName,
+            appointmentCount: Number(stylist.appointmentCount),
+            revenue: Number(stylist.revenue),
+          }
           : null,
       };
 

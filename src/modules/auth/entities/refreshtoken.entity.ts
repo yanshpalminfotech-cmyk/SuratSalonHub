@@ -15,16 +15,15 @@ export class RefreshToken {
     @PrimaryGeneratedColumn({ unsigned: true })
     id!: number;
 
-    // @Index('idx_rt_user_id')
+    @Index('idx_rt_user_id')
     @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
     @JoinColumn({ name: 'user_id' })
     user!: User;
 
-    // @Index('idx_rt_token_hash')
+    @Index('idx_rt_token_hash')
     @Column({ name: 'token_hash', type: 'varchar', length: 255 })
     tokenHash!: string;
 
-    // @Index('idx_rt_expires_at')
     @Column({ name: 'expires_at', type: 'timestamp' })
     expiresAt!: Date;
 

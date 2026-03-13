@@ -167,15 +167,14 @@ export class UsersService {
         }
 
         try {
-            // 2. Merge the DTO changes into the existing user entity
             Object.assign(user, dto);
 
-            // 3. Save the changes - Database will check unique constraints here
+
             return await this.userRepo.save(user);
 
         } catch (err) {
             const error = err as MySqlError;
-            // 4. Handle MySQL Duplicate Entry (Error 1062)
+
             if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
                 const message = error.sqlMessage || '';
 
@@ -275,8 +274,8 @@ export class UsersService {
         }
 
         await this.refreshTokenRepo.update(
-            { user: { id: user.id }, revoked: false }, // Find active tokens for this user
-            { revoked: true }                         // Set them to revoked
+            { user: { id: user.id }, revoked: false },
+            { revoked: true }
         );
 
         this.logger.log(`Password changed for user: ${user.email}`);
@@ -319,16 +318,5 @@ export class UsersService {
         });
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PRIVATE HELPERS
-    // ─────────────────────────────────────────────────────────────────────────
-    // private async ensureEmailUnique(email: string): Promise<void> {
-    //     const exists = await this.userRepo.findOne({ where: { email } });
-    //     if (exists) throw new ConflictException('Email already registered');
-    // }
 
-    // private async ensurePhoneUnique(phone: string): Promise<void> {
-    //     const exists = await this.userRepo.findOne({ where: { phone } });
-    //     if (exists) throw new ConflictException('Phone number already registered');
-    // }
 }

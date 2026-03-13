@@ -6,7 +6,7 @@ import {
     Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import { Service } from './entities/service.entity';
 import { ServiceCategoryService } from '../service-category/service-category.service';
@@ -42,7 +42,7 @@ export class ServiceService {
     // POST /services — Admin only
     // ─────────────────────────────────────────────────────────────────────────
     async create(dto: CreateServiceDto): Promise<Service> {
-        // ── validate category ─────────────────────────────────────────────
+
         const category = await this.categoryService.findOneOrFail(dto.categoryId);
 
         if (category.status === STATUS.INACTIVE) {
@@ -51,37 +51,42 @@ export class ServiceService {
             );
         }
 
-        // ── generate service_code ─────────────────────────────────────────
-        // count ALL including deleted — code never repeats
-        const count = await this.serviceRepo.count();
-        const serviceCode = `SRV-${String(count + 1).padStart(3, '0')}`;
+        return this.serviceRepo.manager.transaction(async (manager: EntityManager) => {
+            const result = await manager
+                .createQueryBuilder(Service, 's')
+                .select('COUNT(*)', 'count')
+                .setLock('pessimistic_write')
+                .getRawOne<{ count: string }>();
 
-        const service = this.serviceRepo.create({
-            serviceCode,
-            name: dto.name.trim(),
-            category,
-            durationMins: dto.durationMins,
-            price: dto.price,
-            gender: dto.gender,
-            description: dto.description?.trim() ?? null,
-            status: STATUS.ACTIVE,
-        });
+            const seq = String(Number(result?.count ?? 0) + 1).padStart(3, '0');
+            const serviceCode = `SRV-${seq}`;
 
-        try {
-            const saved = await this.serviceRepo.save(service);
-            this.logger.log(`Service created: ${saved.serviceCode} — ${saved.name}`);
-            return saved;
-        } catch (err) {
-            const error = err as MySqlError;
-            if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
-                throw new ConflictException(
-                    `Service "${dto.name}" already exists`,
-                );
+            const service = manager.create(Service, {
+                serviceCode,
+                name: dto.name.trim(),
+                category,
+                durationMins: dto.durationMins,
+                price: dto.price,
+                gender: dto.gender,
+                description: dto.description?.trim() ?? null,
+                status: STATUS.ACTIVE,
+            });
+            try {
+                const saved = await manager.save(Service, service);
+                this.logger.log(`Service created: ${saved.serviceCode} — ${saved.name}`);
+                return saved;
+            } catch (err) {
+                const error = err as MySqlError;
+                if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
+                    throw new ConflictException(
+                        `Service "${dto.name}" already exists`,
+                    );
+                }
+                throw err;
             }
-            throw err;
         }
+        );
     }
-
     // ─────────────────────────────────────────────────────────────────────────
     // GET /services — All roles (paginated + filtered + role-aware response)
     // ─────────────────────────────────────────────────────────────────────────
@@ -215,14 +220,12 @@ export class ServiceService {
     async update(id: number, dto: UpdateServiceDto): Promise<Service> {
         const service = await this.findOneOrFail(id);
 
-        // cannot update inactive service — must toggle first
         if (service.status === STATUS.INACTIVE) {
             throw new BadRequestException(
                 `Service "${service.name}" is inactive. Please activate it first.`,
             );
         }
 
-        // ── update category if provided ───────────────────────────────────
         if (dto.categoryId) {
             const category = await this.categoryService.findOneOrFail(dto.categoryId);
 
@@ -327,5 +330,6 @@ export class ServiceService {
             excludeExtraneousValues: true,
         });
     }
+
 
 }

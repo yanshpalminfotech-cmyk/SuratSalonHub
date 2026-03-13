@@ -24,7 +24,7 @@ export class Service {
     @Column({ type: 'varchar', length: 100 })
     name!: string;
 
-    // @Index('idx_services_category_id')
+    @Index('idx_services_category_id')
     @ManyToOne(() => ServiceCategory, {
         nullable: false,
         onDelete: 'RESTRICT',                        // cannot delete category with active services
@@ -39,14 +39,12 @@ export class Service {
     @Column({ type: 'decimal', precision: 10, scale: 2 })
     price!: number;
 
-    // @Index('idx_services_gender')
     @Column({ type: 'enum', enum: Gender, default: Gender.UNISEX })
     gender!: Gender;
 
     @Column({ type: 'text', nullable: true })
     description!: string | null;
 
-    // @Index('idx_services_status')
     @Column({ type: 'tinyint', default: STATUS.ACTIVE })
     status!: number;
 

@@ -34,7 +34,7 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     async validate(payload: JwtPayload): Promise<User> {
-        // ── blacklist check: was this token invalidated on logout? ─────────
+
         const isBlacklisted = await this.blacklistService.isBlacklisted(payload.jti);
         if (isBlacklisted) {
             throw new UnauthorizedException('Token has been invalidated. Please login again.');

@@ -93,8 +93,7 @@ export class AuthController {
         @CurrentUser() user: User,
         @Req() req: Request,
     ): Promise<{ message: string }> {
-        // extract raw access token from Authorization header
-        // format: "Bearer <token>"
+
         const rawAccessToken = req.headers.authorization?.split(' ')[1] ?? '';
 
         await this.authService.logout(user.id, rawAccessToken);

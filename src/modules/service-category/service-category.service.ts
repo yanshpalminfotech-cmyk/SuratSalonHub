@@ -33,17 +33,14 @@ export class ServiceCategoryService {
                 name: dto.name.trim(),
             });
 
-            // Try to save directly
             return await this.categoryRepo.save(category);
 
         } catch (err) {
             const error = err as MySqlError;
-            // Handle MySQL/Postgres Unique Constraint Error (Error Code 23505 or ER_DUP_ENTRY)
             if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
                 throw new ConflictException(`Category "${dto.name}" already exists`);
             }
 
-            // If it's another error, throw the original
             throw error;
         }
     }
@@ -77,26 +74,23 @@ export class ServiceCategoryService {
             );
         }
 
-        // 2. Prepare the update data
         if (dto.name) {
             category.name = dto.name.trim();
         }
 
 
         try {
-            // 3. Save directly. The DB will block the update if 'name' is a duplicate.
+
             const updated = await this.categoryRepo.save(category);
             this.logger.log(`Category updated: ${updated.name}`);
             return updated;
 
         } catch (err) {
             const error = err as MySqlError;
-            // Handle the duplicate name error specifically
             if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
                 throw new ConflictException(`Category "${dto.name}" already exists`);
             }
 
-            // Re-throw other unexpected errors
             throw error;
         }
     }
@@ -113,8 +107,6 @@ export class ServiceCategoryService {
             );
         }
 
-        // guard — cannot delete if active services exist under this category
-        // raw query to avoid circular dependency with ServiceModule
         const serviceCount = await this.categoryRepo
             .createQueryBuilder('category')
             .innerJoin(

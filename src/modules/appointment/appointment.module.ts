@@ -10,20 +10,21 @@ import { StylistModule } from '../stylist/stylist.module';
 import { ServiceModule } from '../service/service.module';
 import { TimeSlotModule } from '../time-slot/time-slot.module';
 
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Appointment,
       AppointmentServiceEntity,
-      StylistServiceJunction,   // needed to query stylist ↔ service assignments
+      StylistServiceJunction,
     ]),
-    CustomerModule,             // CustomerService.findOneOrFail()
-    StylistModule,              // StylistsService.findOneOrFail()
-    ServiceModule,              // ServiceService.findByIds()
-    TimeSlotModule,             // TimeSlotService.bookSlots() + releaseSlots()
+    CustomerModule,
+    StylistModule,
+    ServiceModule,
+    TimeSlotModule,
   ],
   controllers: [AppointmentController],
   providers: [AppointmentService],
-  exports: [AppointmentService],  // PaymentModule will use AppointmentService later
+  exports: [AppointmentService],
 })
 export class AppointmentModule { }

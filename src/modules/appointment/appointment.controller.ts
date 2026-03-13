@@ -37,9 +37,7 @@ import { User } from 'src/modules/user/entities/user.entity';
 export class AppointmentController {
     constructor(private readonly appointmentService: AppointmentService) { }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // GET /appointments/available-slots  ← MUST be before GET /:id
-    // ─────────────────────────────────────────────────────────────────────────
     @Get('available-slots')
     @Roles(UserRole.ADMIN, UserRole.RECEPTIONIST)
     @HttpCode(HttpStatus.OK)

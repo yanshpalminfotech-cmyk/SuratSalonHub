@@ -68,7 +68,7 @@ export class TimeSlotService implements OnApplicationBootstrap {
     // ─────────────────────────────────────────────────────────────────────────
     // CRON — every day at 23:30, add one more day to the rolling window
     // ─────────────────────────────────────────────────────────────────────────
-    @Cron('39 17 * * *')
+    @Cron('30 11 * * *')
     async generateDailySlots(): Promise<void> {
         const target = new Date();
         target.setDate(target.getDate() + 7);
@@ -92,10 +92,9 @@ export class TimeSlotService implements OnApplicationBootstrap {
     // PUBLIC — generate slots for ALL active stylists on one specific date
     // ─────────────────────────────────────────────────────────────────────────
     async generateSlotsForDate(date: string): Promise<void> {
-        // parse date string to get the day of week
+
         const dayEnum = this.dateToDayOfWeek(date);
 
-        // fetch all ACTIVE stylists with their working schedules
         const stylists = await this.stylistRepo.find({
             where: { stylistStatus: StylistStatus.ACTIVE },
             relations: ['workingSchedules'],
@@ -175,8 +174,7 @@ export class TimeSlotService implements OnApplicationBootstrap {
         manager: EntityManager,
     ): Promise<TimeSlot[]> {
         const slotsNeeded = Math.ceil(totalDurationMins / SLOT_DURATION_MINS);
-        // snap the end time to the nearest slot boundary, otherwise the SQL query 
-        // won't capture the final slot if totalDurationMins (e.g. 40) is not a multiple of 15.
+
         const gridDurationMins = slotsNeeded * SLOT_DURATION_MINS;
         const endTime = minsToTime(timeToMins(startTime) + gridDurationMins);
 
@@ -263,10 +261,7 @@ export class TimeSlotService implements OnApplicationBootstrap {
 
         if (slots.length === 0) return;
 
-        // INSERT IGNORE — idempotent: skips existing rows silently
-        // .updateEntity(false) prevents TypeORM from trying to re-fetch the entity
-        // id after INSERT IGNORE, which returns 0 for skipped (duplicate) rows
-        // and causes "Cannot update entity because entity id is not set" error.
+
         await this.dataSource
             .createQueryBuilder()
             .insert()

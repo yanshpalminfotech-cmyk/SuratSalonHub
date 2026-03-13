@@ -24,4 +24,8 @@ export default () => ({
         password: process.env.REDIS_PASSWORD || '',
         db: parseInt(process.env.REDIS_DB!, 10) || 0,
     },
+    throttler: {
+        ttl: parseInt(process.env.THROTTLER_TTL!, 10) || 60000,
+        limit: parseInt(process.env.THROTTLER_LIMIT!, 10) || 10,
+    },
 });

@@ -19,18 +19,18 @@ export class User {
     @PrimaryGeneratedColumn({ unsigned: true })
     id!: number;
 
-    // @Index('idx_users_role')
+    @Index('idx_users_role')
     @Column({ type: 'enum', enum: UserRole })
     role!: UserRole;
 
     @Column({ type: 'varchar', length: 100 })
     name!: string;
 
-    // @Index({ unique: true })
+    @Index({ unique: true })
     @Column({ type: 'varchar', length: 150, unique: true })
     email!: string;
 
-    // @Index({ unique: true })
+    @Index({ unique: true })
     @Column({ type: 'varchar', length: 15, unique: true })
     phone!: string;
 
@@ -38,7 +38,7 @@ export class User {
     @Column({ name: 'password', type: 'varchar', length: 255 })
     passwordHash!: string;
 
-    // @Index('idx_users_is_locked')
+    @Index('idx_users_is_locked')
     @Column({ name: 'is_locked', type: 'boolean', default: false })
     isLocked!: boolean;
 

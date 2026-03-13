@@ -35,9 +35,6 @@ export interface LoginResponse {
     tokens: AuthTokens;
 }
 
-// ── Dummy hash — prevents timing attacks when email not found ────────────────
-// const DUMMY_HASH = '$2b$12$dummyhashfortimingattackprevention00000000000000000000';
-
 @Injectable()
 export class AuthService {
     private readonly logger = new Logger(AuthService.name);
@@ -56,7 +53,6 @@ export class AuthService {
     ) { }
 
     async registerAdmin(dto: RegisterAdminDto): Promise<Omit<User, 'passwordHash'>> {
-        // ── one admin only ────────────────────────────────────────────────
         const adminExists = await this.userRepo.findOne({
             where: { role: UserRole.ADMIN },
         });
@@ -68,18 +64,15 @@ export class AuthService {
             );
         }
 
-        // ── uniqueness checks ─────────────────────────────────────────────
         const emailTaken = await this.userRepo.findOne({ where: { email: dto.email } });
         if (emailTaken) throw new ConflictException('Email already registered');
 
         const phoneTaken = await this.userRepo.findOne({ where: { phone: dto.phone } });
         if (phoneTaken) throw new ConflictException('Phone number already registered');
 
-        // ── hash password ─────────────────────────────────────────────────
         const rounds = this.config.get<number>('auth.bcryptRounds') ?? 12;
         const passwordHash = await bcrypt.hash(dto.password, rounds);
 
-        // ── create admin ──────────────────────────────────────────────────
         const admin = this.userRepo.create({
             name: dto.name,
             email: dto.email,
@@ -104,7 +97,7 @@ export class AuthService {
     // LOGIN
     // ─────────────────────────────────────────────────────────────────────────
     async login(dto: LoginDto): Promise<LoginResponse> {
-        // @Exclude() hides passwordHash — addSelect fetches it explicitly here
+
         const user = await this.userRepo
             .createQueryBuilder('user')
             .addSelect('user.password')
@@ -115,17 +108,14 @@ export class AuthService {
             throw new UnauthorizedException('Invalid email or password.');
         }
 
-        // ── deleted account — don't reveal existence ──────────────────────
         if (user?.status === STATUS.DELETED) {
             throw new UnauthorizedException('Invalid email or password');
         }
 
-        // ── inactive account ──────────────────────────────────────────────
         if (user?.status === STATUS.INACTIVE) {
             throw new UnauthorizedException('Account is inactive. Please contact admin.');
         }
 
-        // ── locked account — 423 ─────────────────────────────────────────
         if (user?.isLocked) {
             throw new HttpException(
                 'Account is locked due to too many failed attempts. Please contact admin.',
@@ -133,7 +123,6 @@ export class AuthService {
             );
         }
 
-        // ── password check — always run bcrypt (timing attack prevention) ─
         const isValid = await bcrypt.compare(
             dto.password,
             user?.passwordHash,
@@ -144,18 +133,13 @@ export class AuthService {
             throw new UnauthorizedException('Invalid email or password.');
         }
 
-        // ── success: reset brute force counters ───────────────────────────
         if (user.failedAttempts > 0) {
-            // await this.userRepo.update(user.id, {
-            //     failedAttempts: 0,
-            //     isLocked: false,
-            // });
             await this.userService.resetFailedAttempts(user.id);
         }
 
         await this.refreshTokenRepo.update(
-            { user: { id: user.id } }, // Find active tokens for this user
-            { revoked: true }                         // Set them to revoked
+            { user: { id: user.id } },
+            { revoked: true }
         );
 
         const tokens = await this.generateAndStoreTokens(user);
@@ -169,49 +153,8 @@ export class AuthService {
         };
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // REFRESH
-    // ─────────────────────────────────────────────────────────────────────────
-    // async refresh(userId: number, incomingToken: string): Promise<AuthTokens> {
-    //     const storedTokens = await this.refreshTokenRepo.find({
-    //         where: { user: { id: userId }, revoked: false },
-    //         relations: ['user'],
-    //     });
-
-    //     if (storedTokens.length === 0) {
-    //         throw new UnauthorizedException('Invalid or expired refresh token');
-    //     }
-
-    //     let matchedToken: RefreshToken | null = null;
-
-    //     for (const token of storedTokens) {
-    //         const isMatch = await bcrypt.compare(incomingToken, token.tokenHash);
-    //         if (isMatch) {
-    //             matchedToken = token;
-    //             break;
-    //         }
-    //     }
-
-    //     if (!matchedToken) {
-    //         throw new UnauthorizedException('Invalid or expired refresh token');
-    //     }
-
-    //     if (matchedToken.expiresAt < new Date()) {
-    //         await this.refreshTokenRepo.update(matchedToken.id, { revoked: true });
-    //         throw new UnauthorizedException('Refresh token expired. Please login again.');
-    //     }
-
-    //     // rotation — revoke old, issue new
-    //     await this.refreshTokenRepo.update(matchedToken.id, { revoked: true });
-
-    //     const tokens = await this.generateAndStoreTokens(matchedToken.user);
-
-    //     this.logger.log(`Token refreshed for user: ${userId}`);
-    //     return tokens;
-    // }
-
     async refresh(userId: number, incomingToken: string): Promise<AuthTokens> {
-        // 1. Fetch the SINGLE active token for this user
+
         const tokenRecord = await this.refreshTokenRepo.findOne({
             where: {
                 user: { id: userId },
@@ -220,38 +163,29 @@ export class AuthService {
             relations: ['user'],
         });
 
-        // 2. If no record exists, they were likely kicked out by another device or logged out
         if (!tokenRecord) {
             throw new UnauthorizedException('Session expired or logged in from another device');
         }
 
-        // 3. Verify the hash
         const isMatch = await bcrypt.compare(incomingToken, tokenRecord.tokenHash);
         if (!isMatch) {
-            // Security: If the token doesn't match, someone might be tampering. 
-            // We delete the record to be safe (Force logout).
-            // await this.refreshTokenRepo.delete({ user: { id: userId } });
+
             await this.refreshTokenRepo.update(
-                { user: { id: userId } }, // Find active tokens for this user
-                { revoked: true }                         // Set them to revoked
+                { user: { id: userId } },
+                { revoked: true }
             );
             throw new UnauthorizedException('Invalid refresh token');
         }
 
-        // 4. Check expiration
         if (tokenRecord.expiresAt < new Date()) {
             await this.refreshTokenRepo.delete({ id: tokenRecord.id });
             throw new UnauthorizedException('Session expired. Please login again.');
         }
 
-        // 5. Rotation: Kill the current one and generate a brand new one
-        // In Single Device mode, we just delete the old record entirely
-        // await this.refreshTokenRepo.delete({ id: tokenRecord.id });
         await this.refreshTokenRepo.update(
-            { id: tokenRecord.id }, // Find active tokens for this user
+            { id: tokenRecord.id },
             { revoked: true });
 
-        // This method (which we modified earlier) will now save the NEW single session
         const tokens = await this.generateAndStoreTokens(tokenRecord.user);
 
         this.logger.log(`Token rotated for user: ${userId}`);
@@ -263,10 +197,9 @@ export class AuthService {
     // ─────────────────────────────────────────────────────────────────────────
     async logout(
         userId: number,
-        accessToken: string,           // raw access token from Authorization header
+        accessToken: string,           
     ): Promise<void> {
-        // ── 1. Blacklist access token in Redis ────────────────────────────
-        // decode without verifying — signature already verified by JwtAuthGuard
+
         const decoded = this.jwtService.decode(accessToken) as JwtPayload & { exp: number };
 
         if (decoded?.jti && decoded?.exp) {
@@ -274,25 +207,10 @@ export class AuthService {
         }
 
         await this.refreshTokenRepo.update(
-            { user: { id: userId }, revoked: false }, // Find active tokens for this user
-            { revoked: true }                         // Set them to revoked
+            { user: { id: userId }, revoked: false }, 
+            { revoked: true }                        
         );
 
-        // ── 2. Revoke refresh token in DB (current device only) ───────────
-        // const storedTokens = await this.refreshTokenRepo.find({
-        //     where: { user: { id: userId }, revoked: true },
-        // });
-
-        // for (const token of storedTokens) {
-        //     const isMatch = await bcrypt.compare(incomingRefreshToken, token.tokenHash);
-        //     if (isMatch) {
-        //         await this.refreshTokenRepo.update(token.id, { revoked: true });
-        //         this.logger.log(`Logout success: user ${userId}`);
-        //         return;
-        //     }
-        // }
-
-        // refresh token not found — still ok (access token already blacklisted)
         this.logger.warn(`Logout: no matching refresh token found for user ${userId}`);
     }
 
@@ -325,7 +243,7 @@ export class AuthService {
     // PRIVATE — generate access + refresh tokens, store hashed refresh in DB
     // ─────────────────────────────────────────────────────────────────────────
     private async generateAndStoreTokens(user: User): Promise<AuthTokens> {
-        // jti = unique ID per token — used to blacklist on logout
+
         const jti = uuidv4();
 
         const payload: JwtPayload = {
@@ -333,9 +251,9 @@ export class AuthService {
             email: user.email,
             role: user.role,
             jti,
-            exp: 0,   // overridden by expiresIn below — placeholder for interface
+            exp: 0,
         };
-        // console.log(this.config.get<string>('jwt.accessExpiresIn'));
+
         const [accessToken, refreshToken] = await Promise.all([
             this.jwtService.signAsync(
                 { sub: payload.sub, email: payload.email, role: payload.role, jti },
@@ -353,7 +271,6 @@ export class AuthService {
             ),
         ]);
 
-        // store hashed refresh token in DB
         const rounds = this.config.get<number>('auth.bcryptRounds') ?? 12;
         const tokenHash = await bcrypt.hash(refreshToken, rounds);
         const expiresAt = this.parseExpiryToDate(

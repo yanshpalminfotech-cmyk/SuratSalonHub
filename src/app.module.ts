@@ -8,7 +8,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './modules/redis/redis.module';
 import configuration from './config/configuration';
 import { ServiceCategoryModule } from './modules/service-category/service-category.module';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { HttpExceptionFilter } from './common/interceptor/http-exception.interceptor';
 import { LoggingInterceptor } from './common/interceptor/logging.interceptor';
 import { ResponseInterceptor } from './common/interceptor/response.interceptor';
@@ -42,12 +43,25 @@ import { ReportModule } from './modules/report/report.module';
         },
       }),
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get<number>('throttler.ttl') ?? 60000,
+          limit: config.get<number>('throttler.limit') ?? 10,
+        },
+      ],
+    }),
     UserModule, AuthModule, RedisModule, ServiceCategoryModule, ServiceModule, StylistModule, CustomerModule, TimeSlotModule, AppointmentModule, PaymentModule, ReportModule
   ],
   controllers: [AppController],
-  providers: [{ provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
-  { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
-  { provide: APP_FILTER, useClass: HttpExceptionFilter }, AppService
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    AppService
   ],
 })
 export class AppModule { }

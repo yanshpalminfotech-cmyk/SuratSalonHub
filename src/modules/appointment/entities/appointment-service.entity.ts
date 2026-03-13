@@ -12,6 +12,7 @@ import { Service } from '../../service/entities/service.entity';
 
 @Entity('appointment_services')
 @Unique('uq_appt_service', ['appointment', 'service'])
+@Index('idx_appointment_id_service_name', ['id', 'serviceName'])
 export class AppointmentServiceEntity {
     @PrimaryGeneratedColumn({ unsigned: true })
     id!: number;
@@ -32,7 +33,6 @@ export class AppointmentServiceEntity {
     @JoinColumn({ name: 'service_id' })
     service!: Service;
 
-    // ── Snapshot fields — copied at booking time ──────────────────────────────
     @Column({ name: 'service_name', type: 'varchar', length: 100 })
     serviceName!: string;
 

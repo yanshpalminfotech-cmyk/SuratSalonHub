@@ -14,6 +14,7 @@ import { PaymentMethod, PaymentStatus } from 'src/common/enums';
 @Entity('payments')
 @Index('idx_payment_status', ['paymentStatus'])
 @Index('idx_payment_paid_at', ['paidAt'])
+@Index('idx_appointment_id_payment_status_amount', ['appointment', 'paymentStatus', 'amount'])
 export class Payment {
     @PrimaryGeneratedColumn({ unsigned: true })
     id!: number;

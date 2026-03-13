@@ -29,7 +29,7 @@ async function bootstrap() {
     .setTitle('SuratSalon Hub API')
     .setDescription('Professional API documentation for Salon Management System')
     .setVersion('1.0')
-    .addBearerAuth() // Allows you to test protected routes with JWT
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

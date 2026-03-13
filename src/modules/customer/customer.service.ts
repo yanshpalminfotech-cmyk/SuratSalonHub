@@ -13,6 +13,7 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { QueryCustomerDto } from './dto/query-customer.dto';
 import { STATUS } from 'src/common/constant/constant';
 import { MySqlError } from 'src/common/interface/mysql-error.interface';
+import { Appointment } from '../appointment/entities/appointment.entity';
 
 export interface PaginatedCustomers {
     data: Customer[];
@@ -64,7 +65,6 @@ export class CustomerService {
                     if (error.sqlMessage?.includes('email') || error.sqlMessage?.includes('customers.IDX_8536b8b85c06969f84f0c098b0')) {
                         throw new ConflictException('Email already registered');
                     }
-                    // customer_code collision — extremely rare with lock, but safety net
                     throw new ConflictException('Please try again');
                 }
                 throw err;
@@ -131,25 +131,18 @@ export class CustomerService {
         const customer = await this.customerRepo.findOne({
             where: {
                 id,
-                status: (STATUS.ACTIVE) // Explicitly ignore soft-deleted records in the query
+                status: (STATUS.ACTIVE)
             },
             relations: [
                 'appointments',
                 'appointments.stylist',
-                'appointments.stylist.user', // To get the stylist's name
+                'appointments.stylist.user',
                 'appointments.appointmentServices',
-                'appointments.appointmentServices.service', // Helpful to see WHAT services were booked
+                'appointments.appointmentServices.service',
             ],
-            // Sorting: Newest appointments first
-            // order: {
-            //     appointments: {
-            //         date: 'DESC',
-            //         startTime: 'DESC',
-            //     },
-            // },
+
         });
 
-        // ── Validation ───────────────────────────────────────────────────
         if (!customer) {
             throw new NotFoundException(`Customer with ID #${id} not found or has been deleted.`);
         }
@@ -166,13 +159,6 @@ export class CustomerService {
         if (customer.status === STATUS.INACTIVE) {
             throw new BadRequestException('Customer is inactive. Please activate first.');
         }
-
-        // if (dto.name !== undefined) customer.name = dto.name;
-        // if (dto.phone !== undefined) customer.phone = dto.phone;
-        // if (dto.email !== undefined) customer.email = dto.email ?? null;
-        // if (dto.gender !== undefined) customer.gender = dto.gender ?? null;
-        // if (dto.dateOfBirth !== undefined) customer.dateOfBirth = dto.dateOfBirth ?? null;
-        // if (dto.notes !== undefined) customer.notes = dto.notes ?? null;
 
         Object.assign(customer, dto);
 
@@ -206,7 +192,6 @@ export class CustomerService {
             throw new ConflictException('Customer already deleted');
         }
 
-        // Guard: no scheduled appointments
         const scheduledCount = await this.dataSource
             .getRepository('appointments')
             .count({
@@ -248,9 +233,6 @@ export class CustomerService {
         const start = `${year}-01-01`;
         const end = `${year + 1}-01-01`;
 
-        // FOR UPDATE — locks the counted rows
-        // second concurrent transaction waits until first commits
-        // then reads updated count → gets next sequential number
         const result = await manager
             .createQueryBuilder(Customer, 'customer')
             .select('COUNT(*)', 'count')
@@ -258,7 +240,7 @@ export class CustomerService {
                 start,
                 end,
             })
-            .setLock('pessimistic_write')          // SELECT ... FOR UPDATE
+            .setLock('pessimistic_write')
             .getRawOne<{ count: string }>();
 
         const seq = String(Number(result?.count ?? 0) + 1).padStart(3, '0');

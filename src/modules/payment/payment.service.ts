@@ -39,18 +39,15 @@ export class PaymentService {
     // POST /payments — Admin + Receptionist
     // ─────────────────────────────────────────────────────────────────────────
     async create(dto: CreatePaymentDto): Promise<Payment> {
-        // 1. Validate appointment exists (throws 404 internally)
         const appointment = await this.appointmentService.findOneOrFail(dto.appointmentId);
 
-        // 2. Block payment for terminal appointment statuses
-        if (appointment.status === AppointmentStatus.CANCELLED) {
+        if (appointment.appointmentStatus === AppointmentStatus.CANCELLED) {
             throw new BadRequestException('Cannot create payment for a cancelled appointment');
         }
-        if (appointment.status === AppointmentStatus.NO_SHOW) {
+        if (appointment.appointmentStatus === AppointmentStatus.NO_SHOW) {
             throw new BadRequestException('Cannot create payment for a no-show appointment');
         }
 
-        // 3. Check no existing payment (application-level guard)
         const existing = await this.paymentRepo.findOne({
             where: { appointment: { id: dto.appointmentId } },
         });
@@ -58,15 +55,14 @@ export class PaymentService {
             throw new ConflictException('Payment already exists for this appointment');
         }
 
-        // 4. Amount always from appointment — never from request body
         const payment = this.paymentRepo.create({
-            appointment:    { id: dto.appointmentId } as any,
-            amount:         Number(appointment.totalAmount),
-            paymentMethod:  dto.paymentMethod,
-            paymentStatus:  PaymentStatus.PENDING,
+            appointment: { id: dto.appointmentId } as any,
+            amount: Number(appointment.totalAmount),
+            paymentMethod: dto.paymentMethod,
+            paymentStatus: PaymentStatus.PENDING,
             transactionRef: dto.transactionRef ?? null,
-            notes:          dto.notes ?? null,
-            paidAt:         null,
+            notes: dto.notes ?? null,
+            paidAt: null,
         });
 
         try {
@@ -103,11 +99,11 @@ export class PaymentService {
             .take(limit);
 
         if (appointmentId) qb.andWhere('appointment.id = :appointmentId', { appointmentId });
-        if (paymentStatus)  qb.andWhere('payment.paymentStatus = :paymentStatus', { paymentStatus });
-        if (paymentMethod)  qb.andWhere('payment.paymentMethod = :paymentMethod', { paymentMethod });
-        if (stylistId)      qb.andWhere('stylist.id = :stylistId', { stylistId });
-        if (fromDate)       qb.andWhere('payment.paidAt >= :fromDate', { fromDate });
-        if (toDate)         qb.andWhere('payment.paidAt <= :toDate', { toDate });
+        if (paymentStatus) qb.andWhere('payment.paymentStatus = :paymentStatus', { paymentStatus });
+        if (paymentMethod) qb.andWhere('payment.paymentMethod = :paymentMethod', { paymentMethod });
+        if (stylistId) qb.andWhere('stylist.id = :stylistId', { stylistId });
+        if (fromDate) qb.andWhere('payment.paidAt >= :fromDate', { fromDate });
+        if (toDate) qb.andWhere('payment.paidAt <= :toDate', { toDate });
 
         const [data, total] = await qb.getManyAndCount();
 
@@ -143,7 +139,6 @@ export class PaymentService {
     async collect(id: number, dto: UpdateCollectDto): Promise<Payment> {
         const payment = await this.findOneOrFail(id);
 
-        // Status guard
         if (payment.paymentStatus === PaymentStatus.PAID) {
             throw new BadRequestException('Payment is already collected');
         }
@@ -151,16 +146,15 @@ export class PaymentService {
             throw new BadRequestException('Payment has been refunded and cannot be re-collected');
         }
 
-        // Appointment guard
-        if (payment.appointment.status === AppointmentStatus.CANCELLED) {
+        if (payment.appointment.appointmentStatus === AppointmentStatus.CANCELLED) {
             throw new BadRequestException('Cannot collect payment for a cancelled appointment');
         }
 
-        payment.paymentStatus  = PaymentStatus.PAID;
-        payment.paymentMethod  = dto.paymentMethod;
+        payment.paymentStatus = PaymentStatus.PAID;
+        payment.paymentMethod = dto.paymentMethod;
         payment.transactionRef = dto.transactionRef ?? payment.transactionRef;
-        payment.notes          = dto.notes ?? payment.notes;
-        payment.paidAt         = new Date();   // server-set timestamp
+        payment.notes = dto.notes ?? payment.notes;
+        payment.paidAt = new Date();
 
         const updated = await this.paymentRepo.save(payment);
         this.logger.log(`Payment #${id} collected | method: ${dto.paymentMethod} | amount: ₹${updated.amount}`);
@@ -173,7 +167,6 @@ export class PaymentService {
     async refund(id: number, dto: UpdateRefundDto): Promise<Payment> {
         const payment = await this.findOneOrFail(id);
 
-        // Status guard
         if (payment.paymentStatus === PaymentStatus.PENDING) {
             throw new BadRequestException('Cannot refund a payment that has not been collected yet');
         }
@@ -181,8 +174,8 @@ export class PaymentService {
             throw new BadRequestException('Payment is already refunded');
         }
 
-        payment.paymentStatus  = PaymentStatus.REFUNDED;
-        payment.notes          = dto.notes ?? payment.notes;
+        payment.paymentStatus = PaymentStatus.REFUNDED;
+        payment.notes = dto.notes ?? payment.notes;
         payment.transactionRef = dto.transactionRef ?? payment.transactionRef;
 
         const updated = await this.paymentRepo.save(payment);
